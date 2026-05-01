@@ -94,9 +94,6 @@ using namespace vgui;
 #include "cs_shareddefs.h"
 #include "bone_setup.h"
 
-#include "imgui_system.h"
-#include "imgui_impl_source.h"
-
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
@@ -2630,35 +2627,6 @@ void CBaseModPanel::RunFrame()
 //-----------------------------------------------------------------------------
 void CBaseModPanel::UpdateRichPresenceInfo()
 {
-}
-
-void CBaseModPanel::Paint()
-{
-    BaseClass::Paint();
-    int screen_w, screen_h;
-    vgui::surface()->GetScreenSize(screen_w, screen_h);       
-    ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2((float)screen_w, (float)screen_h);
-    float deltaTime = gpGlobals->frametime;
-    if (deltaTime <= 0.0f)
-    {
-        deltaTime = 1.0f / 60.0f; // 提供一个安全的默认值
-    }
-    io.DeltaTime = deltaTime;
-    ImGui::NewFrame();
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(screen_w, screen_h));
-    if (ImGui::Begin("Touch Debug Test", nullptr, ImGuiWindowFlags_NoDecoration))
-    {
-        ImGui::Text("Hello from ImGui!");
-        if (ImGui::Button("Close Game", ImVec2(200, 100))) 
-        {
-            engine->ClientCmd("quit");
-        }
-    }
-    ImGui::End();
-    ImGui::Render();
-    ImGui_ImplSource_RenderDrawData(ImGui::GetDrawData());
 }
 
 //-----------------------------------------------------------------------------
