@@ -1,0 +1,33 @@
+name: Builds
+
+on:
+  workflow_dispatch:
+
+jobs:
+  builds-android:
+    strategy:
+      matrix:
+        include:
+          - target: android-aarch64
+            build_cmd: |
+              chmod +x scripts/build-android-aarch64.sh
+              scripts/build-android-aarch64.sh
+    name: Build ${{matrix.target}}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source (shallow clone)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: recursive
+        
+      - name: Build ${{matrix.target}}
+        run: |
+          ${{matrix.build_cmd}}
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: csso-${{matrix.target}}
+          path: ./output/*
