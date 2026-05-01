@@ -1,9 +1,9 @@
 [submodule "thirdparty"]
 	path = thirdparty
-	url = https://github.com/nillerusr/source-thirdparty
+	url = https://github.com/SourceApp-GameLauncher/csso-thirdparty
 [submodule "ivp"]
 	path = ivp
 	url = https://github.com/nillerusr/source-physics
 [submodule "lib"]
 	path = lib
-	url = https://github.com/DMK95/source-engine-libs
+	url = https://github.com/SourceApp-GameLauncher/csso-libs
