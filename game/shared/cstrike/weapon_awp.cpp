@@ -11,7 +11,6 @@
 	#define CWeaponAWP C_WeaponAWP
 #endif
 
-
 class CWeaponAWP : public CWeaponCSBaseGun
 {
 public:
@@ -19,7 +18,7 @@ public:
 	DECLARE_NETWORKCLASS(); 
 	DECLARE_PREDICTABLE();
 	
-	CWeaponAWP() {}
+	CWeaponAWP();
 
 	virtual CSWeaponID GetCSWeaponID( void ) const		{ return WEAPON_AWP; }
 
@@ -37,3 +36,7 @@ END_PREDICTION_DATA()
 
 LINK_ENTITY_TO_CLASS( weapon_awp, CWeaponAWP );
 PRECACHE_WEAPON_REGISTER( weapon_awp );
+
+CWeaponAWP::CWeaponAWP()
+{
+}

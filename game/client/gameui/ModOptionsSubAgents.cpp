@@ -129,26 +129,26 @@ static Agents agentsT[] =
 };
 
 //-----------------------------------------------------------------------------
-// Purpose: Basic help dialog
+// Purpose: Constructor
 //-----------------------------------------------------------------------------
-CModOptionsSubAgents::CModOptionsSubAgents(vgui::Panel *parent) : vgui::PropertyPage(parent, "ModOptionsSubAgents") 
+CModOptionsSubAgents::CModOptionsSubAgents(vgui::Panel *parent) : vgui::PropertyPage(parent, "ModOptionsSubAgents")
 {
-	Button *cancel = new Button( this, "Cancel", "#GameUI_Cancel" );
-	cancel->SetCommand( "Close" );
+	// Initialize with minimum size - will be resized in PerformLayout
+	SetSize(100, 100);
 
-	Button *ok = new Button( this, "OK", "#GameUI_OK" );
-	ok->SetCommand( "Ok" );
+	// Create labels
+	m_pAgentCTComboBoxLabel = new vgui::Label( this, "AgentCTComboBoxLabel", "#GameUI_Loadout_Agent_CT" );
+	m_pAgentTComboBoxLabel = new vgui::Label( this, "AgentTComboBoxLabel", "#GameUI_Loadout_Agent_T" );
+	m_pMainMenuWeaponCTLabel = new vgui::Label( this, "MainMenuWeaponCTLabel", "#GameUI_Loadout_Agent_CT_Weapon" );
+	m_pMainMenuWeaponTLabel = new vgui::Label( this, "MainMenuWeaponTLabel", "#GameUI_Loadout_Agent_T_Weapon" );
 
-	Button *apply = new Button( this, "Apply", "#GameUI_Apply" );
-	apply->SetCommand( "Apply" );
-
-	//=========
-
+	// Create ComboBoxes
 	m_pLoadoutAgentCTComboBox = new CLabeledCommandComboBox( this, "AgentCTComboBox" );
 	m_pLoadoutAgentTComboBox = new CLabeledCommandComboBox( this, "AgentTComboBox" );
 	m_pLoadoutMainMenuWeaponCTComboBox = new CLabeledCommandComboBox( this, "MainMenuWeaponCTComboBox" );
 	m_pLoadoutMainMenuWeaponTComboBox = new CLabeledCommandComboBox( this, "MainMenuWeaponTComboBox" );
 
+	// Create image panels
 	m_pAgentImageCT = new CBitmapImagePanel( this, "AgentImageCT", NULL );
 	m_pAgentImageCT->AddActionSignalTarget( this );
 	m_pAgentImageT = new CBitmapImagePanel( this, "AgentImageT", NULL );
@@ -181,8 +181,71 @@ CModOptionsSubAgents::CModOptionsSubAgents(vgui::Panel *parent) : vgui::Property
 	m_pLoadoutAgentTComboBox->AddActionSignalTarget( this );
 	m_pLoadoutMainMenuWeaponCTComboBox->AddActionSignalTarget( this );
 	m_pLoadoutMainMenuWeaponTComboBox->AddActionSignalTarget( this );
+}
 
-	LoadControlSettings("Resource/ModOptionsSubAgents.res");
+//-----------------------------------------------------------------------------
+// Purpose: Perform layout - called when size changes
+//-----------------------------------------------------------------------------
+void CModOptionsSubAgents::PerformLayout()
+{
+	BaseClass::PerformLayout();
+
+	// Get available size
+	int pw = GetWide();
+	int ph = GetTall();
+
+	if (pw < 100 || ph < 100)
+		return;
+
+#ifndef PROPVAL
+	#define PROPVAL(x) (IsProportional() ? scheme()->GetProportionalScaledValueEx(GetScheme(), (x)) : (x))
+#endif
+
+	int margin = PROPVAL(16);
+	int halfWidth = PROPVAL(224);
+	int controlHeight = PROPVAL(24);
+	int labelHeight = PROPVAL(24);
+	int previewHeight = PROPVAL(168);
+
+	// Calculate total width and center offset
+	int totalWidth = margin + halfWidth + PROPVAL(12) + halfWidth;
+	int centerOffset = (pw - totalWidth) / 2;
+
+	// CT side (left column)
+	int leftX = margin + centerOffset;
+	// Agent CT ComboBox Label at y=8
+	m_pAgentCTComboBoxLabel->SetPos(leftX, margin + PROPVAL(8));
+	m_pAgentCTComboBoxLabel->SetSize(halfWidth, labelHeight);
+	// Agent Image CT at y=32
+	m_pAgentImageCT->SetPos(leftX, margin + PROPVAL(32));
+	m_pAgentImageCT->SetSize(halfWidth, previewHeight);
+	// Agent CT ComboBox at y=216
+	m_pLoadoutAgentCTComboBox->SetPos(leftX, margin + PROPVAL(216));
+	m_pLoadoutAgentCTComboBox->SetSize(halfWidth, controlHeight);
+	// Main Menu Weapon CT Label at y=256
+	m_pMainMenuWeaponCTLabel->SetPos(leftX, margin + PROPVAL(256));
+	m_pMainMenuWeaponCTLabel->SetSize(halfWidth, labelHeight);
+	// Main Menu Weapon CT ComboBox at y=280
+	m_pLoadoutMainMenuWeaponCTComboBox->SetPos(leftX, margin + PROPVAL(280));
+	m_pLoadoutMainMenuWeaponCTComboBox->SetSize(halfWidth, controlHeight);
+
+	// T side (right column)
+	int rightX = margin + halfWidth + PROPVAL(12) + centerOffset;
+	// Agent T ComboBox Label at y=8
+	m_pAgentTComboBoxLabel->SetPos(rightX, margin + PROPVAL(8));
+	m_pAgentTComboBoxLabel->SetSize(halfWidth, labelHeight);
+	// Agent Image T at y=32
+	m_pAgentImageT->SetPos(rightX, margin + PROPVAL(32));
+	m_pAgentImageT->SetSize(halfWidth, previewHeight);
+	// Agent T ComboBox at y=216
+	m_pLoadoutAgentTComboBox->SetPos(rightX, margin + PROPVAL(216));
+	m_pLoadoutAgentTComboBox->SetSize(halfWidth, controlHeight);
+	// Main Menu Weapon T Label at y=256
+	m_pMainMenuWeaponTLabel->SetPos(rightX, margin + PROPVAL(256));
+	m_pMainMenuWeaponTLabel->SetSize(halfWidth, labelHeight);
+	// Main Menu Weapon T ComboBox at y=280
+	m_pLoadoutMainMenuWeaponTComboBox->SetPos(rightX, margin + PROPVAL(280));
+	m_pLoadoutMainMenuWeaponTComboBox->SetSize(halfWidth, controlHeight);
 }
 
 //-----------------------------------------------------------------------------

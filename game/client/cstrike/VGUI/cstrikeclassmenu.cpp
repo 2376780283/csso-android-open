@@ -182,7 +182,7 @@ void CCSClassMenu_TER::ResetAgentModels()
 			CCSWeaponInfo* pWeaponInfo = dynamic_cast<CCSWeaponInfo*>(GetFileWeaponInfoFromHandle( hWpnInfo ));
 			if ( pWeaponInfo )
 			{
-				m_pAgentModels[i]->SetWeaponModel( pWeaponInfo->szWorldModel );
+				m_pAgentModels[i]->SetWeaponModel( pWeaponInfo->szWorldModel, pPlayer, nWeaponID);
 				m_pAgentModels[i]->SetSequence( pWeaponInfo->m_szClassMenuAnimT, 0.0f );
 			}
 		}
@@ -194,16 +194,16 @@ void CCSClassMenu_TER::ResetAgentModels()
 			const char* pszDefaultGlovesModel = GetPlayerViewmodelArmConfigForPlayerModel( pszPlayerModel )->szAssociatedGloveModel;
 			if ( pszGlovesViewModel && pszDefaultGlovesModel && m_pAgentModels[i]->DoesModelSupportGloves( pszGlovesViewModel, pszDefaultGlovesModel ) )
 			{
-				m_pAgentModels[i]->SetGlovesModel( pszGlovesWorldModel );
+				m_pAgentModels[i]->SetGlovesModel( pszGlovesWorldModel, pPlayer, TEAM_TERRORIST );
 			}
 			else
 			{
-				m_pAgentModels[i]->SetGlovesModel( NULL );
+				m_pAgentModels[i]->SetGlovesModel( NULL, pPlayer, TEAM_TERRORIST );
 			}
 		}
 		else
 		{
-			m_pAgentModels[i]->SetGlovesModel( NULL );
+			m_pAgentModels[i]->SetGlovesModel( NULL, pPlayer, TEAM_TERRORIST );
 		}
 	}
 }
@@ -290,7 +290,7 @@ void CCSClassMenu_CT::ResetAgentModels()
 			CCSWeaponInfo* pWeaponInfo = dynamic_cast<CCSWeaponInfo*>(GetFileWeaponInfoFromHandle( hWpnInfo ));
 			if ( pWeaponInfo )
 			{
-				m_pAgentModels[i]->SetWeaponModel( pWeaponInfo->szWorldModel );
+				m_pAgentModels[i]->SetWeaponModel( pWeaponInfo->szWorldModel, pPlayer, nWeaponID);
 				m_pAgentModels[i]->SetSequence( pWeaponInfo->m_szClassMenuAnim, 0.0f );
 			}
 		}
@@ -302,16 +302,16 @@ void CCSClassMenu_CT::ResetAgentModels()
 			const char* pszDefaultGlovesModel = GetPlayerViewmodelArmConfigForPlayerModel( pszPlayerModel )->szAssociatedGloveModel;
 			if ( pszGlovesViewModel && pszDefaultGlovesModel && m_pAgentModels[i]->DoesModelSupportGloves( pszGlovesViewModel, pszDefaultGlovesModel ) )
 			{
-				m_pAgentModels[i]->SetGlovesModel( pszGlovesWorldModel );
+				m_pAgentModels[i]->SetGlovesModel( pszGlovesWorldModel, pPlayer, TEAM_CT );
 			}
 			else
 			{
-				m_pAgentModels[i]->SetGlovesModel( NULL );
+				m_pAgentModels[i]->SetGlovesModel( NULL, pPlayer, TEAM_CT );
 			}
 		}
 		else
 		{
-			m_pAgentModels[i]->SetGlovesModel( NULL );
+			m_pAgentModels[i]->SetGlovesModel( NULL, pPlayer, TEAM_CT );
 		}
 	}
 }

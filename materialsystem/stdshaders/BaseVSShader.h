@@ -25,6 +25,28 @@
 #define SUPPORT_DX8 1
 #define SUPPORT_DX7 1
 #endif
+
+// Texture combining modes for combining base and detail/basetexture2
+// Matches what's in common_ps_fxc.h
+#define DETAIL_BLEND_MODE_RGB_EQUALS_BASE_x_DETAILx2				0	// Original mode (Mod2x)
+#define DETAIL_BLEND_MODE_RGB_ADDITIVE								1	// Base.rgb+detail.rgb*fblend
+#define DETAIL_BLEND_MODE_DETAIL_OVER_BASE							2
+#define DETAIL_BLEND_MODE_FADE										3	// Straight fade between base and detail.
+#define DETAIL_BLEND_MODE_BASE_OVER_DETAIL							4	// Use base alpha for blend over detail
+#define DETAIL_BLEND_MODE_RGB_ADDITIVE_SELFILLUM					5	// Add detail color post lighting
+#define DETAIL_BLEND_MODE_RGB_ADDITIVE_SELFILLUM_THRESHOLD_FADE		6
+#define DETAIL_BLEND_MODE_MOD2X_SELECT_TWO_PATTERNS					7	// Use alpha channel of base to select between mod2x channels in r+a of detail
+#define DETAIL_BLEND_MODE_MULTIPLY									8
+#define DETAIL_BLEND_MODE_MASK_BASE_BY_DETAIL_ALPHA					9	// Use alpha channel of detail to mask base
+#define DETAIL_BLEND_MODE_SSBUMP_BUMP								10	// Use detail to modulate lighting as an ssbump
+#define DETAIL_BLEND_MODE_SSBUMP_NOBUMP								11	// Detail is an ssbump but use it as an albedo. shader does the magic here - no user needs to specify mode 11
+#define DETAIL_BLEND_MODE_NONE										12	// There is no detail texture
+
+// Texture combining modes for combining base and decal texture
+#define DECAL_BLEND_MODE_DECAL_ALPHA								0	// Original mode ( = decalRGB*decalA + baseRGB*(1-decalA))
+#define DECAL_BLEND_MODE_RGB_MOD1X									1	// baseRGB * decalRGB
+#define DECAL_BLEND_MODE_NONE										2	// There is no decal texture
+
 //-----------------------------------------------------------------------------
 // Helper macro for vertex shaders
 //-----------------------------------------------------------------------------
@@ -337,6 +359,19 @@ private:
 
 };
 
+FORCEINLINE bool IsSRGBDetailTexture( int nMode )
+{
+	return	( nMode == DETAIL_BLEND_MODE_DETAIL_OVER_BASE ) ||
+			( nMode == DETAIL_BLEND_MODE_FADE ) ||
+			( nMode == DETAIL_BLEND_MODE_BASE_OVER_DETAIL );
+}
+
+FORCEINLINE bool IsSRGBDecalTexture( int nMode )
+{
+	return	(nMode == DECAL_BLEND_MODE_DECAL_ALPHA);
+}
+
+extern ConVar r_flashlightbrightness;
 FORCEINLINE void SetFlashLightColorFromState( FlashlightState_t const &state, IShaderDynamicAPI *pShaderAPI, int nPSRegister=28, bool bFlashlightNoLambert=false )
 {
 	// Old code
@@ -349,8 +384,7 @@ FORCEINLINE void SetFlashLightColorFromState( FlashlightState_t const &state, IS
 	//	flToneMapScale = 1.0f;
 	//float flFlashlightScale = 1.0f / flToneMapScale;
 
-	// Force flashlight to 25% bright always
-	float flFlashlightScale = 0.25f;
+	float flFlashlightScale = r_flashlightbrightness.GetFloat();
 
 	if ( !g_pHardwareConfig->GetHDREnabled() )
 	{
@@ -358,11 +392,13 @@ FORCEINLINE void SetFlashLightColorFromState( FlashlightState_t const &state, IS
 		flFlashlightScale = 2.0f;
 	}
 
-	// DX10 requires some hackery due to sRGB/blend ordering change from DX9
+	// DX10 require a hack scalar since the flashlight is added in linear space
 	if ( g_pHardwareConfig->UsesSRGBCorrectBlending() )
 	{
-		flFlashlightScale *= 2.5f; // Magic number that works well on the NVIDIA 8800
+		flFlashlightScale *= 2.5f; // Magic number that works well on the 360 and NVIDIA 8800
 	}
+
+	flFlashlightScale *= state.m_fBrightnessScale;
 
 	// Generate pixel shader constant
 	float const *pFlashlightColor = state.m_Color;

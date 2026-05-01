@@ -117,6 +117,10 @@ public:
 
 	// Interface for mat system to tell shaderapi about color correction
 	virtual void GetCurrentColorCorrection( ShaderColorCorrectionInfo_t* pInfo ) = 0;
+
+	// Gets texture handles for ITextures
+	virtual ShaderAPITextureHandle_t GetShaderAPITextureBindHandle( ITexture *pTexture, int nFrame, int nTextureChannel ) = 0;
+
 	// received an event while not in owning thread, handle this outside
 	virtual void OnThreadEvent( uint32 threadEvent ) = 0;
 

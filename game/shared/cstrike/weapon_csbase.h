@@ -212,6 +212,7 @@ public:
 	virtual int GetMuzzleAttachmentIndex( C_BaseAnimating* pAnimating, bool isThirdPerson = false );
 	virtual const char* GetMuzzleFlashEffectName( bool bThirdPerson );
 	virtual int GetEjectBrassAttachmentIndex( C_BaseAnimating* pAnimating, bool isThirdPerson = false );
+    void    UpdateCustomMaterial();
 #endif
 
 	virtual void SetWeaponModelIndex( const char *pName );
@@ -328,6 +329,9 @@ public:
 	// keep track of a player who bought it
 	void SetOriginalOwnerIndex( int index ) { m_nOriginalOwnerIndex = index; }
 	int GetOriginalOwnerIndex() { return m_nOriginalOwnerIndex; }
+    
+    void SetPaintKit(int paintID) { m_iPaintKit = paintID; }
+    virtual int GetPaintKit() const override { return m_iPaintKit; }
 
 protected:
 
@@ -362,6 +366,7 @@ private:
 	CNetworkVar( float, m_fLastShotTime );
 
 	CNetworkVar( bool, m_bStatTrak );
+    CNetworkVar( int, m_iPaintKit );
 	CNetworkVar( int, m_nOriginalOwnerIndex );
 
 #ifdef CLIENT_DLL

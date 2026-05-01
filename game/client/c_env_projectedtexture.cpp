@@ -51,6 +51,7 @@ private:
 	bool	m_bLightOnlyTarget;
 	bool	m_bLightWorld;
 	bool	m_bCameraSpace;
+	float	m_flBrightnessScale;
 	Vector	m_LinearFloatLightColor;
 	float	m_flAmbient;
 	float	m_flNearZ;
@@ -68,6 +69,7 @@ IMPLEMENT_CLIENTCLASS_DT( C_EnvProjectedTexture, DT_EnvProjectedTexture, CEnvPro
 	RecvPropBool(	 RECVINFO( m_bLightOnlyTarget ) ),
 	RecvPropBool(	 RECVINFO( m_bLightWorld )		),
 	RecvPropBool(	 RECVINFO( m_bCameraSpace )		),
+	RecvPropFloat(	 RECVINFO( m_flBrightnessScale )	),
 	RecvPropVector(	 RECVINFO( m_LinearFloatLightColor )		),
 	RecvPropFloat(	 RECVINFO( m_flAmbient )		),
 	RecvPropString(  RECVINFO( m_SpotlightTextureName ) ),
@@ -184,6 +186,7 @@ void C_EnvProjectedTexture::UpdateLight( bool bForceUpdate )
 	state.m_fQuadraticAtten = 0.0;
 	state.m_fLinearAtten = 100;
 	state.m_fConstantAtten = 0.0f;
+	state.m_fBrightnessScale = m_flBrightnessScale;
 	state.m_Color[0] = m_LinearFloatLightColor.x;
 	state.m_Color[1] = m_LinearFloatLightColor.y;
 	state.m_Color[2] = m_LinearFloatLightColor.z;

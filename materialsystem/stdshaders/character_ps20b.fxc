@@ -19,27 +19,11 @@
 // STATIC:  "FLASHLIGHT"				"0..1"
 // STATIC:  "FLASHLIGHTDEPTHFILTERMODE" "0..3"
 
-// DYNAMIC: "NUM_LIGHTS"				"0..4"
+// DYNAMIC: "NUM_LIGHTS"				"0..4"		[ps30]
 // DYNAMIC: "WRITE_DEPTH_TO_DESTALPHA"	"0..0"
 // DYNAMIC: "WRITEWATERFOGTODESTALPHA"	"0..1"
 
-// DYNAMIC: "PIXELFOGTYPE"	"0..1"
-
-#if ( PIXELFOGTYPE == 1 )
-	// No matter what shader model we are, we do pixel fog for water.
-	#define DOPIXELFOG 1
-	#define HARDWAREFOGBLEND 0
-#else
-	#if defined( SHADER_MODEL_PS_2_0 )
-		// Never do pixel for for ps20 (unless we are in water)
-		#define DOPIXELFOG 0
-		#define HARDWAREFOGBLEND 1
-	#else
-		// Never do vertex fog for >ps20
-		#define DOPIXELFOG 1
-		#define HARDWAREFOGBLEND 0
-	#endif
-#endif
+#include "common_fog_ps_fxc.h"
 
 // SKIP: ( $AMBIENTREFLECTION == 0 ) && ( $USEBOUNCECOLOR == 1 )
 // SKIP: ( $BASEALPHAENVMASK == 1 ) && ( $ENVMAP == 0 )

@@ -575,7 +575,7 @@ public:
 
 	void ResetStamina( void );
 	bool IsArmored( int nHitGroup );
-	void Pain( bool HasArmour, int nDmgTypeBits );
+	void Pain( CCSPlayer* attacker, bool HasArmour, int nDmgTypeBits = 0 );
 	
 	void DeathSound( const CTakeDamageInfo &info );
 	
@@ -895,9 +895,12 @@ public:
 	CNetworkVar( int, m_iLoadoutSlotAgentCT );
 	CNetworkVar( int, m_iLoadoutSlotAgentT );
 	CNetworkVar( int, m_iLoadoutSlotKnifeWeaponCT );
+    CNetworkVar( int, m_iLoadoutSlotKnifeWeaponSkinCT );
 	CNetworkVar( int, m_iLoadoutSlotKnifeWeaponT );
+    CNetworkVar( int, m_iLoadoutSlotKnifeWeaponSkinT );
 	CNetworkVar( int, m_iLoadoutSlotGlovesCT );
 	CNetworkVar( int, m_iLoadoutSlotGlovesT );
+    CNetworkVar( int, m_iGlovePaintKitID );
 	CNetworkHandle( CBaseCSGloves, m_hLoadoutGloves );
 	bool m_bLoadoutStatTrak;
 	int m_iLoadoutMusic;
@@ -1064,8 +1067,11 @@ private:
 
 	// Clients don't know about holstered weapons, so we need to tell them the weapon type here
 	CNetworkVar( int, m_iPrimaryAddon );
+    CNetworkVar( int, m_iPrimaryAddonPaintKit );
 	CNetworkVar( int, m_iSecondaryAddon );
+    CNetworkVar( int, m_iSecondaryAddonPaintKit );
 	CNetworkVar( int, m_iKnifeAddon );
+    CNetworkVar( int, m_iKnifeAddonPaintKit );
 
 //Damage record functions
 public:

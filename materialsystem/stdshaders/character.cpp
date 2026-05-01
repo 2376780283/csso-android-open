@@ -811,13 +811,9 @@ BEGIN_VS_SHADER( Character, "Help for Character Shader" )
 				bool bHDR = (g_pHardwareConfig->GetHDRType() != HDR_TYPE_NONE);
 				pShaderShadow->EnableSRGBRead( SHADER_SAMPLER6, bHDR ? false : true );
 			}
-			if ( bHasGrunge )
+			if ( bHasFlashlight )
 			{
-				pShaderShadow->EnableSRGBRead( SHADER_SAMPLER11, true );
-			}
-			if ( bPattern )
-			{
-				pShaderShadow->EnableSRGBRead( SHADER_SAMPLER14, bHasCustomPaint ? true : false );
+				pShaderShadow->EnableSRGBRead( SHADER_SAMPLER8, true );
 			}
 
 			DefaultFog();
@@ -837,6 +833,7 @@ BEGIN_VS_SHADER( Character, "Help for Character Shader" )
 			pShaderAPI->CommitPixelShaderLighting( PSREG_LIGHT_INFO_ARRAY );
 			SetModulationPixelShaderDynamicState_LinearColorSpace( 1 );
 
+			pShaderAPI->BindStandardTexture( SHADER_SAMPLER5, TEXTURE_NORMALIZATION_CUBEMAP_SIGNED );
 			if ( bHasBumpMap )
 			{
 				BindTexture( SHADER_SAMPLER1, BUMPMAP, -1 );
@@ -872,50 +869,26 @@ BEGIN_VS_SHADER( Character, "Help for Character Shader" )
 			{
 				BindTexture( SHADER_SAMPLER6, ENVMAP, -1 );
 			}
-			if (bHasFlashlight)
-            {
-                VMatrix worldToTexture;
-                float atten[4], pos[4], tweaks[4];
-                ITexture* pFlashlightDepthTexture;
-                const FlashlightState_t& flashlightState = pShaderAPI->GetFlashlightStateEx(worldToTexture, &pFlashlightDepthTexture);
-                SetFlashLightColorFromState(flashlightState, pShaderAPI, PSREG_FLASHLIGHT_COLOR);
-                BindTexture(SHADER_SAMPLER8, flashlightState.m_pSpotlightTexture, flashlightState.m_nSpotlightTextureFrame);
-                if (pFlashlightDepthTexture && g_pConfig->ShadowDepthTexture() && flashlightState.m_bEnableShadows)
-                {
-                    BindTexture(SHADER_SAMPLER11, pFlashlightDepthTexture, 0);
-                    pShaderAPI->BindStandardTexture(SHADER_SAMPLER5, TEXTURE_SHADOW_NOISE_2D);
-                }
-                
-                // Set the flashlight attenuation factors
-                atten[0] = flashlightState.m_fConstantAtten;
-                atten[1] = flashlightState.m_fLinearAtten;
-                atten[2] = flashlightState.m_fQuadraticAtten;
-                atten[3] = flashlightState.m_FarZ;
-                pShaderAPI->SetPixelShaderConstant(PSREG_FLASHLIGHT_ATTENUATION, atten, 1);
+			if ( bHasFlashlight )
+			{
+				CBCmdSetPixelShaderFlashlightState_t state;
+				state.m_LightSampler = SHADER_SAMPLER8;
+				state.m_DepthSampler = SHADER_SAMPLER9;
+				state.m_ShadowNoiseSampler = SHADER_SAMPLER5;
+				state.m_nColorConstant = PSREG_FLASHLIGHT_COLOR;
+				state.m_nAttenConstant = PSREG_FLASHLIGHT_ATTENUATION;
+				state.m_nOriginConstant = PSREG_FLASHLIGHT_POSITION_RIM_BOOST;
+				state.m_nDepthTweakConstant = 109;
+				state.m_nScreenScaleConstant = PSREG_FLASHLIGHT_SCREEN_SCALE;
+				state.m_nWorldToTextureConstant = PSREG_FLASHLIGHT_TO_WORLD_TEXTURE;
+				state.m_bFlashlightNoLambert = false;
+				state.m_bSinglePassFlashlight = true;
 
-                // Set the flashlight origin
-                pos[0] = flashlightState.m_vecLightOrigin[0];
-                pos[1] = flashlightState.m_vecLightOrigin[1];
-                pos[2] = flashlightState.m_vecLightOrigin[2];
-                pShaderAPI->SetPixelShaderConstant(PSREG_FLASHLIGHT_POSITION_RIM_BOOST, pos, 1);
-
-                pShaderAPI->SetPixelShaderConstant(PSREG_FLASHLIGHT_TO_WORLD_TEXTURE, worldToTexture.Base(), 4, false);
-
-                // Tweaks associated with a given flashlight
-                tweaks[0] = ShadowFilterFromState(flashlightState);
-                tweaks[1] = ShadowAttenFromState(flashlightState);
-                HashShadow2DJitter(flashlightState.m_flShadowJitterSeed, &tweaks[2], &tweaks[3]);
-                pShaderAPI->SetPixelShaderConstant(109, tweaks, 1, false);
-
-                {
-                    float vScreenScale[4] = { 1280.0f / 32.0f, 720.0f / 32.0f, 0, 0 };
-                    int nWidth, nHeight;
-                    pShaderAPI->GetBackBufferDimensions(nWidth, nHeight);
-                    vScreenScale[0] = (float)nWidth / 32.0f;
-                    vScreenScale[1] = (float)nHeight / 32.0f;
-                    pShaderAPI->SetPixelShaderConstant(PSREG_FLASHLIGHT_SCREEN_SCALE, vScreenScale, 1);
-                }
-            }
+				CCommandBufferBuilder< CFixedCommandStorageBuffer< 256 > > DynamicCmdsOut;
+				DynamicCmdsOut.SetPixelShaderFlashlightState( state );
+				DynamicCmdsOut.End();
+				pShaderAPI->ExecuteCommandBuffer( DynamicCmdsOut.Base() );
+			}
 
 
 			if ( bHasMaterialMask )

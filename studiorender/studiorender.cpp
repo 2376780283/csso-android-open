@@ -760,3 +760,33 @@ void CStudioRender::DrawModelArray( const DrawModelInfo_t &drawInfo, const Studi
 #endif
 }
 
+int CStudioRender::GetForcedMaterialOverrideIndex( int nMaterialIndex )
+{
+    if ( m_pRC )
+    {
+        DevMsg("[GetForcedMaterialOverrideIndex] Looking for index %d, total count: %d\n", 
+               nMaterialIndex, m_pRC->m_nForcedMaterialIndexCount);
+        
+        for ( int i = 0; i < m_pRC->m_nForcedMaterialIndexCount; i++ )
+        {
+            DevMsg("  Checking slot %d: stored_index=%d, material=%s\n", 
+                   i, 
+                   m_pRC->m_nForcedMaterialIndex[i],
+                   m_pRC->m_pForcedMaterial[i] ? m_pRC->m_pForcedMaterial[i]->GetName() : "NULL");
+            
+            if ( m_pRC->m_nForcedMaterialIndex[i] == nMaterialIndex )
+            {
+                DevMsg("  -> MATCH! Returning slot %d\n", i);
+                return i;
+            }
+        }
+        
+        DevMsg("  -> No match found for index %d\n", nMaterialIndex);
+    }
+    else
+    {
+        Warning("[GetForcedMaterialOverrideIndex] m_pRC is NULL!\n");
+    }
+
+    return -1;
+}

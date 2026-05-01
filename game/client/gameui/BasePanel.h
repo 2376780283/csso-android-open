@@ -16,12 +16,14 @@
 #include "vgui_controls/PHandle.h"
 #include "vgui_controls/MenuItem.h"
 #include "vgui_controls/MessageDialog.h"
+#include "ExtraManagerPanel.h" 
 #include "KeyValues.h"
 #include "utlvector.h"
 #include "tier1/CommandBuffer.h"
 #include "tier2/camerautils.h"
 #include "tier3/mdlutils.h"
 #include "materialsystem/MaterialSystemUtil.h"
+#include "CustomMenu.h"
 
 #include "ixboxsystem.h"
 
@@ -57,6 +59,7 @@ static MenuBackground s_MenuBackgrounds[] =
 	{ "media/background/sirocco_night.bik",	"#GameUI_HUD_MenuBackground_sirocco_night"	},
 	{ "media/background/swamp.bik",			"#GameUI_HUD_MenuBackground_swamp"			},
 	{ "media/background/vertigo.bik",		"#GameUI_HUD_MenuBackground_vertigo"		},
+	{ "media/background/aatest.webm",      "WEBM"                                         },
 };
 
 enum
@@ -72,6 +75,7 @@ class CGameMenu;
 class CAsyncCtxOnDeviceAttached;
 class IVideoMaterial;
 class IMaterial;
+class ImageUrlButton;
 
 // X360TBD: Move into a separate module when finished
 class CMessageDialogHandler
@@ -287,24 +291,27 @@ public:
 	void OnGameUIActivated();
 
 	// game dialogs
+	// Helper function to activate dialog with fade-in animation
+	void ActivateDialogWithFade( vgui::Frame *pDialog );
+
 	void OnOpenNewGameDialog( const char *chapter = NULL );
 	void OnOpenBonusMapsDialog();
 	void OnOpenLoadGameDialog();
-	void OnOpenLoadGameDialog_Xbox();
 	void OnOpenSaveGameDialog();
-	void OnOpenSaveGameDialog_Xbox();
 	void OnOpenServerBrowser();
 	void OnOpenFriendsDialog();
 	void OnOpenDemoDialog();
+	void OnOpenVoteDialog();
 	void OnOpenCreateMultiplayerGameDialog();
 	void OnOpenQuitConfirmationDialog();
 	void OnOpenDisconnectConfirmationDialog();
 	void OnOpenChangeGameDialog();
 	void OnOpenPlayerListDialog();
 	void OnOpenBenchmarkDialog();
+	void ShowExtraManager();
 	void OnOpenOptionsDialog();
 	void OnOpenModOptionsDialog();
-	void OnOpenOptionsDialog_Xbox();
+	void OnResumeGame();
 	void OnOpenLoadCommentaryDialog();
 	void OpenLoadSingleplayerCommentaryDialog();
 	void OnOpenAchievementsDialog();
@@ -321,8 +328,7 @@ public:
     // HPE_END
     //=============================================================================
 
-    void OnOpenAchievementsDialog_Xbox();
-	void OnOpenControllerDialog();
+    void OnOpenAchievementsDialog_Xbox();	
 
 	// Xbox 360
 	CMatchmakingBasePanel* GetMatchmakingBasePanel();
@@ -349,6 +355,7 @@ public:
 	void PositionDialog( vgui::PHandle dlg );
 
 	virtual void OnSizeChanged( int newWide, int newTall );
+	virtual void Paint();
 
 	void ArmFirstMenuItem( void );
 
@@ -362,15 +369,21 @@ public:
 #endif
 
 	int  GetMenuAlpha( void );
+	
+    ExtraManagerPanel *m_pExtraPanel;
 
 	void SetMainMenuOverride( vgui::VPANEL panel );
 	void RestartBackgroundVideo();
+	
+	void CreateCustomMenuUI();
+	void UpdateCustomMenuUI();
 
 	void UpdateAgentModel();
 
 protected:
 	virtual void PaintBackground();
 	virtual void ApplySchemeSettings(vgui::IScheme *pScheme);
+	virtual void OnScreenSizeChanged( int iOldWide, int iOldTall );
 
 public:
 	// FIXME: This should probably become a friend relationship between the classes
@@ -407,6 +420,7 @@ private:
 	void CreateGameLogo();
 	void CheckBonusBlinkState();
 	void UpdateGameMenus();
+private:
 	CGameMenu *RecursiveLoadGameMenu(KeyValues *datafile);
 
 	void StartExitingProcess();
@@ -449,12 +463,9 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hNewGameDialog;
 	vgui::DHANDLE<vgui::Frame> m_hBonusMapsDialog;
 	vgui::DHANDLE<vgui::Frame> m_hLoadGameDialog;
-	vgui::DHANDLE<vgui::Frame> m_hLoadGameDialog_Xbox;
 	vgui::DHANDLE<vgui::Frame> m_hSaveGameDialog;
-	vgui::DHANDLE<vgui::Frame> m_hSaveGameDialog_Xbox;
 	vgui::DHANDLE<vgui::PropertyDialog> m_hOptionsDialog;
 	vgui::DHANDLE<vgui::PropertyDialog> m_hModOptionsDialog;
-	vgui::DHANDLE<vgui::Frame> m_hOptionsDialog_Xbox;
 	vgui::DHANDLE<vgui::Frame> m_hCreateMultiplayerGameDialog;
 	//vgui::DHANDLE<vgui::Frame> m_hDemoPlayerDialog;
 	vgui::DHANDLE<vgui::Frame> m_hChangeGameDialog;
@@ -462,10 +473,10 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hBenchmarkDialog;
 	vgui::DHANDLE<vgui::Frame> m_hLoadCommentaryDialog;
 	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;
+    vgui::DHANDLE<vgui::Frame> m_hExtraDialog;
 
 	// Xbox 360
 	vgui::DHANDLE<vgui::Frame> m_hMatchmakingBasePanel;
-	vgui::DHANDLE<vgui::Frame> m_hControllerDialog;
 
 	EBackgroundState m_eBackgroundState;
 
@@ -496,11 +507,29 @@ private:
 	bool						m_bUseRenderTargetImage;
 	int							m_ExitingFrameCount;
 	bool						m_bXUIVisible;
-	bool						m_bUseMatchmaking;
-	bool						m_bRestartFromInvite;
-	bool						m_bRestartSameGame;
+		bool						m_bUseMatchmaking;
+		bool						m_bRestartFromInvite;
+		bool						m_bRestartSameGame;
+		bool						m_bUseCustomMenu;
+
+	// Custom menu UI elements (for resolution-independent layout)
+	vgui::Panel *m_pLeftNvgbarUp1;
+	vgui::Panel *m_pLeftNvgbarUp2;
+	vgui::Panel *m_pLeftNvgbarDown;
+	vgui::Panel *m_pRightNvgbar;
+	ImageButton *m_pLeftTopLogo;
+	ImageButton *m_pPlayBtn;
+	ImageButton *m_pOpenServersBtn;
+	ImageButton *m_pCallVoteLevelBtn;
+	ImageButton *m_pModOptionsBtn;
+	ImageButton *m_pDemoBtn;
+	ImageButton *m_pSettingsBtn;
+	ImageButton *m_pQuitBtn;
+	ImageButton *m_pAchievementsBtn;
+	ImageUrlButton *m_pBilibiliBtn;
+	NewsListPanel *m_pNewsList;
 	
-	// Used for internal state dealing with blades
+		// Used for internal state dealing with blades
 	bool						m_bUserRefusedSignIn;
 	bool						m_bUserRefusedStorageDevice;
 	bool						m_bWaitingForUserSignIn;

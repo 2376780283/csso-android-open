@@ -27,6 +27,10 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include <tier0/memdbgon.h>
 
+#ifndef PROPVAL
+#define PROPVAL(x) (IsProportional() ? scheme()->GetProportionalScaledValueEx(GetScheme(), (x)) : (x))
+#endif
+
 using namespace vgui;
 
 struct Knives
@@ -60,43 +64,90 @@ static Knives knifeNames[] =
 };
 
 //-----------------------------------------------------------------------------
-// Purpose: Basic help dialog
+// Purpose: Constructor - Fullscreen Style with C++ Layout
 //-----------------------------------------------------------------------------
-CModOptionsSubKnives::CModOptionsSubKnives(vgui::Panel *parent) : vgui::PropertyPage(parent, "ModOptionsSubKnives") 
+CModOptionsSubKnives::CModOptionsSubKnives(vgui::Panel *parent) : vgui::PropertyPage(parent, "ModOptionsSubKnives")
 {
-	Button *cancel = new Button( this, "Cancel", "#GameUI_Cancel" );
-	cancel->SetCommand( "Close" );
+	// Initialize with minimum size - will be resized in PerformLayout
+	SetSize(100, 100);
 
-	Button *ok = new Button( this, "OK", "#GameUI_OK" );
-	ok->SetCommand( "Ok" );
+	// Create ComboBox Labels (matching RES file naming)
+	m_pKnifeCTComboBoxLabel = new vgui::Label(this, "KnifeCTComboBoxLabel", "#GameUI_Loadout_Knife_CT");
+	m_pKnifeTComboBoxLabel = new vgui::Label(this, "KnifeTComboBoxLabel", "#GameUI_Loadout_Knife_T");
 
-	Button *apply = new Button( this, "Apply", "#GameUI_Apply" );
-	apply->SetCommand( "Apply" );
+	// Create controls
+	m_pKnifeImageCT = new CBitmapImagePanel(this, "KnifeImageCT", NULL);
+	m_pKnifeImageCT->AddActionSignalTarget(this);
 
-	//=========
-
-	m_pLoadoutKnifeCTComboBox = new CLabeledCommandComboBox( this, "KnifeCTComboBox" );
-	m_pLoadoutKnifeTComboBox = new CLabeledCommandComboBox( this, "KnifeTComboBox" );
-
-	int i;
+	m_pLoadoutKnifeCTComboBox = new CLabeledCommandComboBox(this, "KnifeCTComboBox");
 	char command[64];
-	for ( i = 0; i < ARRAYSIZE( knifeNames ); i++ )
+	for (int i = 0; i < ARRAYSIZE(knifeNames); i++)
 	{
-		Q_snprintf( command, sizeof( command ), "loadout_slot_knife_weapon_ct %d", i );
-		m_pLoadoutKnifeCTComboBox->AddItem( knifeNames[i].m_szUIName, command );
-		Q_snprintf( command, sizeof( command ), "loadout_slot_knife_weapon_t %d", i );
-		m_pLoadoutKnifeTComboBox->AddItem( knifeNames[i].m_szUIName, command );
+		Q_snprintf(command, sizeof(command), "loadout_slot_knife_weapon_ct %d", i);
+		m_pLoadoutKnifeCTComboBox->AddItem(knifeNames[i].m_szUIName, command);
 	}
+	m_pLoadoutKnifeCTComboBox->AddActionSignalTarget(this);
 
-	m_pKnifeImageCT = new CBitmapImagePanel( this, "KnifeImageCT", NULL );
-	m_pKnifeImageCT->AddActionSignalTarget( this );
-	m_pKnifeImageT = new CBitmapImagePanel( this, "KnifeImageT", NULL );
-	m_pKnifeImageT->AddActionSignalTarget( this );
+	m_pKnifeImageT = new CBitmapImagePanel(this, "KnifeImageT", NULL);
+	m_pKnifeImageT->AddActionSignalTarget(this);
 
-	m_pLoadoutKnifeCTComboBox->AddActionSignalTarget( this );
-	m_pLoadoutKnifeTComboBox->AddActionSignalTarget( this );
+	m_pLoadoutKnifeTComboBox = new CLabeledCommandComboBox(this, "KnifeTComboBox");
+	for (int i = 0; i < ARRAYSIZE(knifeNames); i++)
+	{
+		Q_snprintf(command, sizeof(command), "loadout_slot_knife_weapon_t %d", i);
+		m_pLoadoutKnifeTComboBox->AddItem(knifeNames[i].m_szUIName, command);
+	}
+	m_pLoadoutKnifeTComboBox->AddActionSignalTarget(this);
+}
 
-	LoadControlSettings("Resource/ModOptionsSubKnives.res");
+//-----------------------------------------------------------------------------
+// Purpose: Perform layout - called when size changes
+//-----------------------------------------------------------------------------
+void CModOptionsSubKnives::PerformLayout()
+{
+	BaseClass::PerformLayout();
+
+	// Get available size
+	int pw = GetWide();
+	int ph = GetTall();
+
+	if (pw < 100 || ph < 100)
+		return;
+
+	// Use RES file coordinate values
+	int margin = PROPVAL(16);
+	int halfWidth = PROPVAL(224);
+	int controlHeight = PROPVAL(24);
+	int labelHeight = PROPVAL(24);
+	int previewHeight = PROPVAL(168);
+
+	// Calculate total width and center offset
+	int totalWidth = margin + halfWidth + PROPVAL(12) + halfWidth;
+	int centerOffset = (pw - totalWidth) / 2;
+
+	// CT side (left column)
+	int leftX = margin + centerOffset;
+	// Knife CT ComboBox Label at y=8
+	m_pKnifeCTComboBoxLabel->SetPos(leftX, margin + PROPVAL(8));
+	m_pKnifeCTComboBoxLabel->SetSize(halfWidth, labelHeight);
+	// Knife Image CT at y=32
+	m_pKnifeImageCT->SetPos(leftX, margin + PROPVAL(32));
+	m_pKnifeImageCT->SetSize(halfWidth, previewHeight);
+	// Knife CT ComboBox at y=216
+	m_pLoadoutKnifeCTComboBox->SetPos(leftX, margin + PROPVAL(216));
+	m_pLoadoutKnifeCTComboBox->SetSize(halfWidth, controlHeight);
+
+	// T side (right column)
+	int rightX = margin + halfWidth + PROPVAL(12) + centerOffset;
+	// Knife T ComboBox Label at y=8
+	m_pKnifeTComboBoxLabel->SetPos(rightX, margin + PROPVAL(8));
+	m_pKnifeTComboBoxLabel->SetSize(halfWidth, labelHeight);
+	// Knife Image T at y=32
+	m_pKnifeImageT->SetPos(rightX, margin + PROPVAL(32));
+	m_pKnifeImageT->SetSize(halfWidth, previewHeight);
+	// Knife T ComboBox at y=216
+	m_pLoadoutKnifeTComboBox->SetPos(rightX, margin + PROPVAL(216));
+	m_pLoadoutKnifeTComboBox->SetSize(halfWidth, controlHeight);
 }
 
 //-----------------------------------------------------------------------------

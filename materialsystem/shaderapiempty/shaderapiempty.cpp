@@ -906,6 +906,8 @@ public:
 	virtual bool SupportsFetch4() const { return false; }
 	virtual bool CanStretchRectFromTextures( void ) const { return false; }
 	virtual void EnableBuffer2FramesAhead( bool bEnable ) {}
+    virtual float GetShadowDepthBias() const { return 0.0f; }
+	virtual float GetShadowSlopeScaleDepthBias() const { return 0.0f; }
 
 	virtual void SetPSNearAndFarZ( int pshReg ) { }
 
@@ -1213,6 +1215,8 @@ public:
 	virtual bool GetHDREnabled( void ) const { return true; }
 	virtual void SetHDREnabled( bool bEnable ) {}
 
+	virtual void SetScreenSizeForVPOS( int pshReg ) {}
+
 	virtual void CopyRenderTargetToScratchTexture( ShaderAPITextureHandle_t srcRt, ShaderAPITextureHandle_t dstTex, Rect_t *pSrcRect = NULL, Rect_t *pDstRect = NULL ) 
 	{
 	}
@@ -1235,6 +1239,7 @@ public:
 	void PrintfVA( char *fmt, va_list vargs ) {}
 	void Printf( const char *fmt, ... ) {}
 	float Knob( char *knobname, float *setvalue = NULL ) { return 0.0f; };
+	void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics ) {}
 
 private:
 	enum

@@ -103,6 +103,29 @@ public:
 
 };
 
+
+//-----------------------------------------------------------------------------
+// Used by SetPixelShaderFlashlightState
+//-----------------------------------------------------------------------------
+struct CBCmdSetPixelShaderFlashlightState_t
+{
+	Sampler_t m_LightSampler;
+	Sampler_t m_DepthSampler;
+	Sampler_t m_ShadowNoiseSampler;
+	int m_nColorConstant;
+	int m_nAttenConstant;
+	int m_nOriginConstant;
+	int m_nDepthTweakConstant;
+	int m_nScreenScaleConstant;
+	int m_nWorldToTextureConstant;
+	bool m_bFlashlightNoLambert;
+	bool m_bSinglePassFlashlight;
+};
+
+
+//-----------------------------------------------------------------------------
+// Used to build a per-pass command buffer
+//-----------------------------------------------------------------------------
 template<class S> class CCommandBufferBuilder
 {
 public:
@@ -380,6 +403,12 @@ public:
 		m_Storage.PutInt( nReg );
 	}
 
+	FORCEINLINE void SetPixelShaderFogParams_CSGO( int nReg )
+	{
+		m_Storage.PutInt( CBCMD_SETPIXELSHADERFOGPARAMS_CSGO );
+		m_Storage.PutInt( nReg );
+	}
+
 	FORCEINLINE void BindStandardTexture( Sampler_t nSampler, StandardTextureId_t nTextureId )
 	{
 		m_Storage.PutInt( CBCMD_BIND_STANDARD_TEXTURE );
@@ -423,6 +452,22 @@ public:
 	{
 		m_Storage.PutInt( CBCMD_SET_VSHINDEX );
 		m_Storage.PutInt( nIndex );
+	}
+
+	FORCEINLINE void SetPixelShaderFlashlightState( const CBCmdSetPixelShaderFlashlightState_t &state )
+	{
+		this->m_Storage.PutInt( CBCMD_SET_PIXEL_SHADER_FLASHLIGHT_STATE );
+		this->m_Storage.PutInt( state.m_LightSampler );
+		this->m_Storage.PutInt( state.m_DepthSampler );
+		this->m_Storage.PutInt( state.m_ShadowNoiseSampler );
+		this->m_Storage.PutInt( state.m_nColorConstant );
+		this->m_Storage.PutInt( state.m_nAttenConstant );
+		this->m_Storage.PutInt( state.m_nOriginConstant );
+		this->m_Storage.PutInt( state.m_nDepthTweakConstant );
+		this->m_Storage.PutInt( state.m_nScreenScaleConstant );
+		this->m_Storage.PutInt( state.m_nWorldToTextureConstant );
+		this->m_Storage.PutInt( state.m_bFlashlightNoLambert );
+		this->m_Storage.PutInt( state.m_bSinglePassFlashlight );
 	}
 
 	FORCEINLINE void SetDepthFeatheringPixelShaderConstant( int iConstant, float fDepthBlendScale )

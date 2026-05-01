@@ -130,11 +130,11 @@ private:
 
 public:
 	int m_LastHitGroup;
+    CHandle<C_BaseCombatWeapon>		m_hMyWeapons[MAX_WEAPONS];
 
 private:
 	CNetworkArray( int, m_iAmmo, MAX_AMMO_TYPES );
-
-	CHandle<C_BaseCombatWeapon>		m_hMyWeapons[MAX_WEAPONS];
+    
 	CHandle< C_BaseCombatWeapon > m_hActiveWeapon;
 	float m_flTimeOfLastInjury;
 	RelativeDamagedDirection_t m_nRelativeDirectionOfLastInjury;

@@ -318,6 +318,8 @@ public:
 	bool IsEnemySolid( void ) const;				// returns true if enemies are solid obstacles in the current game mode
 
 	bool HasHalfTime( void ) const;
+    
+    bool IsRoundOver() const;
 
 	int GetCustomBotDifficulty( void ) const;
 

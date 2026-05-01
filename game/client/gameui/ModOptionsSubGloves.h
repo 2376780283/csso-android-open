@@ -12,6 +12,7 @@
 #endif
 
 #include <vgui_controls/PropertyPage.h>
+#include <vgui_controls/Label.h>
 
 class CLabeledCommandComboBox;
 class CBitmapImagePanel;
@@ -32,6 +33,9 @@ public:
 	MESSAGE_FUNC( OnControlModified, "ControlModified" );
 	MESSAGE_FUNC_PTR( OnTextChanged, "TextChanged", panel );
 
+	// Called when layout needs to be performed
+	virtual void PerformLayout() override;
+
 protected:
 	// Called when page is loaded.  Data should be reloaded from document into controls.
 	virtual void OnResetData();
@@ -40,9 +44,16 @@ protected:
 
 private:
 	void					RemapGlovesImage();
+
+	// Labels
+	vgui::Label*			m_pGloveCTComboBoxLabel;
+	vgui::Label*			m_pGloveTComboBoxLabel;
+
+	// Image panels
 	CBitmapImagePanel		*m_pGloveImageCT;
 	CBitmapImagePanel		*m_pGloveImageT;
 
+	// ComboBoxes
 	CLabeledCommandComboBox *m_pLoadoutGloveCTComboBox;
 	CLabeledCommandComboBox *m_pLoadoutGloveTComboBox;
 };

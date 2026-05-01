@@ -250,7 +250,7 @@ void CMaterial_QueueFriendly::RecomputeStateSnapshots()
 bool CMaterial_QueueFriendly::IsTranslucent()
 {
 	//TODO: need to base this as if the queued state is 100% up to date
-	return m_pRealTimeVersion->IsTranslucentInternal( GetMaterialVarFlag( MATERIAL_VAR_IGNORE_ALPHA_MODULATION ) ? 1.0f : m_fAlphaModulationOnQueueCompletion );
+	return m_pRealTimeVersion->IsTranslucentInternal( m_fAlphaModulationOnQueueCompletion );
 }
 
 bool CMaterial_QueueFriendly::NeedsPowerOfTwoFrameBufferTexture( bool bCheckSpecificToThisFrame )

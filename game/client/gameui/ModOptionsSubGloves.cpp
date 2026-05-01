@@ -61,21 +61,18 @@ static Gloves gloveNames[] =
 };
 
 //-----------------------------------------------------------------------------
-// Purpose: Basic help dialog
+// Purpose: Constructor
 //-----------------------------------------------------------------------------
-CModOptionsSubGloves::CModOptionsSubGloves(vgui::Panel *parent) : vgui::PropertyPage(parent, "ModOptionsSubGloves") 
+CModOptionsSubGloves::CModOptionsSubGloves(vgui::Panel *parent) : vgui::PropertyPage(parent, "ModOptionsSubGloves")
 {
-	Button *cancel = new Button( this, "Cancel", "#GameUI_Cancel" );
-	cancel->SetCommand( "Close" );
+	// Initialize with minimum size - will be resized in PerformLayout
+	SetSize(100, 100);
 
-	Button *ok = new Button( this, "OK", "#GameUI_OK" );
-	ok->SetCommand( "Ok" );
+	// Create labels
+	m_pGloveCTComboBoxLabel = new vgui::Label( this, "GloveCTComboBoxLabel", "#GameUI_Loadout_Glove_CT" );
+	m_pGloveTComboBoxLabel = new vgui::Label( this, "GloveTComboBoxLabel", "#GameUI_Loadout_Glove_T" );
 
-	Button *apply = new Button( this, "Apply", "#GameUI_Apply" );
-	apply->SetCommand( "Apply" );
-
-	//=========
-
+	// Create ComboBoxes
 	m_pLoadoutGloveCTComboBox = new CLabeledCommandComboBox( this, "GloveCTComboBox" );
 	m_pLoadoutGloveTComboBox = new CLabeledCommandComboBox( this, "GloveTComboBox" );
 
@@ -89,6 +86,7 @@ CModOptionsSubGloves::CModOptionsSubGloves(vgui::Panel *parent) : vgui::Property
 		m_pLoadoutGloveTComboBox->AddItem( gloveNames[i].m_szUIName, command );
 	}
 
+	// Create image panels
 	m_pGloveImageCT = new CBitmapImagePanel( this, "GloveImageCT", NULL );
 	m_pGloveImageCT->AddActionSignalTarget( this );
 	m_pGloveImageT = new CBitmapImagePanel( this, "GloveImageT", NULL );
@@ -96,8 +94,59 @@ CModOptionsSubGloves::CModOptionsSubGloves(vgui::Panel *parent) : vgui::Property
 
 	m_pLoadoutGloveCTComboBox->AddActionSignalTarget( this );
 	m_pLoadoutGloveTComboBox->AddActionSignalTarget( this );
+}
 
-	LoadControlSettings("Resource/ModOptionsSubGloves.res");
+//-----------------------------------------------------------------------------
+// Purpose: Perform layout - called when size changes
+//-----------------------------------------------------------------------------
+void CModOptionsSubGloves::PerformLayout()
+{
+	BaseClass::PerformLayout();
+
+	// Get available size
+	int pw = GetWide();
+	int ph = GetTall();
+
+	if (pw < 100 || ph < 100)
+		return;
+
+#ifndef PROPVAL
+	#define PROPVAL(x) (IsProportional() ? scheme()->GetProportionalScaledValueEx(GetScheme(), (x)) : (x))
+#endif
+
+	int margin = PROPVAL(16);
+	int halfWidth = PROPVAL(224);
+	int controlHeight = PROPVAL(24);
+	int labelHeight = PROPVAL(24);
+	int previewHeight = PROPVAL(168);
+
+	// Calculate total width and center offset
+	int totalWidth = margin + halfWidth + PROPVAL(12) + halfWidth;
+	int centerOffset = (pw - totalWidth) / 2;
+
+	// CT side (left column)
+	int leftX = margin + centerOffset;
+	// Glove CT ComboBox Label at y=8
+	m_pGloveCTComboBoxLabel->SetPos(leftX, margin + PROPVAL(8));
+	m_pGloveCTComboBoxLabel->SetSize(halfWidth, labelHeight);
+	// Glove Image CT at y=32
+	m_pGloveImageCT->SetPos(leftX, margin + PROPVAL(32));
+	m_pGloveImageCT->SetSize(halfWidth, previewHeight);
+	// Glove CT ComboBox at y=216
+	m_pLoadoutGloveCTComboBox->SetPos(leftX, margin + PROPVAL(216));
+	m_pLoadoutGloveCTComboBox->SetSize(halfWidth, controlHeight);
+
+	// T side (right column)
+	int rightX = margin + halfWidth + PROPVAL(12) + centerOffset;
+	// Glove T ComboBox Label at y=8
+	m_pGloveTComboBoxLabel->SetPos(rightX, margin + PROPVAL(8));
+	m_pGloveTComboBoxLabel->SetSize(halfWidth, labelHeight);
+	// Glove Image T at y=32
+	m_pGloveImageT->SetPos(rightX, margin + PROPVAL(32));
+	m_pGloveImageT->SetSize(halfWidth, previewHeight);
+	// Glove T ComboBox at y=216
+	m_pLoadoutGloveTComboBox->SetPos(rightX, margin + PROPVAL(216));
+	m_pLoadoutGloveTComboBox->SetSize(halfWidth, controlHeight);
 }
 
 //-----------------------------------------------------------------------------

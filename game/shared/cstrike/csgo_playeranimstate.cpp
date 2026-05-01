@@ -702,8 +702,10 @@ void CCSGOPlayerAnimState::DoProceduralFootPlant( matrix3x4_t boneToWorld[], mst
 			// spawn oddities like lowering the player artificially without allowing them to fall can move the player
 			// but it doesn't count as a teleport, so their velocity remains zero... long story short this causes the 
 			// target z values to catch up instead of reset and it looks weird. I'm clamping their range here:
-			vecLeftTarget.z = clamp( vecLeftTarget.z, m_footLeft.m_vecPosAnim.z - 2.0f, m_footLeft.m_vecPosAnim.z + 6.0f );
-			vecRightTarget.z = clamp( vecRightTarget.z, m_footRight.m_vecPosAnim.z - 2.0f, m_footRight.m_vecPosAnim.z + 6.0f );
+            
+            //HACKHACK: Hack disable clamp btw it fix brrr legs on client
+		//	vecLeftTarget.z = clamp( vecLeftTarget.z, m_footLeft.m_vecPosAnim.z - 2.0f, m_footLeft.m_vecPosAnim.z + 6.0f );
+		//	vecRightTarget.z = clamp( vecRightTarget.z, m_footRight.m_vecPosAnim.z - 2.0f, m_footRight.m_vecPosAnim.z + 6.0f );
 
 
 			// sanity-check the result and throw out the positions if they're super weird

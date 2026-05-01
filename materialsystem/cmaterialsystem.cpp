@@ -1766,8 +1766,9 @@ static ConVar mat_showmiplevels(	"mat_showmiplevels", "0", FCVAR_CHEAT, "color-c
 static ConVar mat_specular(			"mat_specular", "1", FCVAR_ALLOWED_IN_COMPETITIVE, "Enable/Disable specularity for perf testing.  Will cause a material reload upon change." );
 static ConVar mat_bumpmap(			"mat_bumpmap", "1", FCVAR_ALLOWED_IN_COMPETITIVE );
 static ConVar mat_phong(			"mat_phong", "1" );
-static ConVar mat_parallaxmap(		"mat_parallaxmap", "1", FCVAR_HIDDEN | FCVAR_ALLOWED_IN_COMPETITIVE );
-static ConVar mat_reducefillrate(	"mat_reducefillrate", "0", FCVAR_ALLOWED_IN_COMPETITIVE );
+static ConVar mat_old_phong(		"mat_old_phong", "0", FCVAR_ARCHIVE, "Revert back to the old & stable Phong shader" );
+static ConVar mat_parallaxmap(		"mat_parallaxmap", "1", FCVAR_HIDDEN );
+static ConVar mat_reducefillrate(	"mat_reducefillrate", "0", FCVAR_NONE );
 
 static ConVar mat_picmip(			"mat_picmip", "2", FCVAR_ARCHIVE, "", true, -32, true, 8 );
 static ConVar mat_slopescaledepthbias_normal( "mat_slopescaledepthbias_normal", "0.0f", FCVAR_CHEAT );
@@ -1844,6 +1845,7 @@ void CMaterialSystem::ReadConfigFromConVars( MaterialSystem_Config_t *pConfig )
 	pConfig->SetFlag( MATSYS_VIDCFG_FLAGS_DISABLE_SPECULAR, !mat_specular.GetBool() );
 	pConfig->SetFlag( MATSYS_VIDCFG_FLAGS_DISABLE_BUMPMAP, !mat_bumpmap.GetBool() );
 	pConfig->SetFlag( MATSYS_VIDCFG_FLAGS_DISABLE_PHONG, !mat_phong.GetBool() );
+	pConfig->SetFlag( MATSYS_VIDCFG_FLAGS_OLD_PHONG, mat_old_phong.GetBool() );
 	pConfig->SetFlag( MATSYS_VIDCFG_FLAGS_ENABLE_PARALLAX_MAPPING, mat_parallaxmap.GetBool() );
 	pConfig->SetFlag( MATSYS_VIDCFG_FLAGS_REDUCE_FILLRATE, mat_reducefillrate.GetBool() );
 	pConfig->m_nForceAnisotropicLevel = max( mat_forceaniso.GetInt(), 1 );
@@ -2274,7 +2276,7 @@ bool CMaterialSystem::OverrideConfig( const MaterialSystem_Config_t &_config, bo
 	}
 
 	// toggle bump mapping
-	if ( config.UseBumpmapping() != g_config.UseBumpmapping() || config.UsePhong() != g_config.UsePhong() )
+	if ( config.UseBumpmapping() != g_config.UseBumpmapping() || config.UsePhong() != g_config.UsePhong() || config.UseOldPhong() != g_config.UseOldPhong() )
 	{
 		if( mat_debugalttab.GetBool() )
 		{

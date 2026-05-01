@@ -27,6 +27,7 @@
 	#include "c_te_effect_dispatch.h"
 	#include "c_te_legacytempents.h"
 	#include "weapon_selection.h"
+    #include "cs_skin_database.h"
 
 	extern IVModelInfoClient* modelinfo;
 
@@ -187,6 +188,7 @@ SendPropBool( SENDINFO( m_bSilencerOn ) ),
 SendPropTime( SENDINFO( m_flDoneSwitchingSilencer ) ),
 SendPropTime( SENDINFO( m_flPostponeFireReadyTime ) ),
 SendPropBool( SENDINFO( m_bStatTrak ) ),
+SendPropInt( SENDINFO( m_iPaintKit ) ),
 SendPropInt( SENDINFO( m_nOriginalOwnerIndex ) ),
 SendPropInt( SENDINFO( m_iIronSightMode ), 2, SPROP_UNSIGNED ),
 #else
@@ -201,6 +203,7 @@ RecvPropBool( RECVINFO( m_bSilencerOn ) ),
 RecvPropTime( RECVINFO( m_flDoneSwitchingSilencer ) ),
 RecvPropTime( RECVINFO( m_flPostponeFireReadyTime ) ),
 RecvPropBool( RECVINFO( m_bStatTrak ) ),
+RecvPropBool( RECVINFO( m_iPaintKit ) ),
 RecvPropInt( RECVINFO( m_nOriginalOwnerIndex ) ),
 RecvPropInt( RECVINFO( m_iIronSightMode ) ),
 #endif
@@ -1761,6 +1764,13 @@ ConVar cl_cam_driver_compensation_scale( "cl_cam_driver_compensation_scale", "0.
 				}
 			}
 		}
+        
+        if ( type == DATA_UPDATE_CREATED )
+	    {
+		    // this will trigger the custom material to start making itself (if needed) the weapon will render with 
+		    // the original material for a few frames, then switch to the custom material when it's ready
+		    UpdateCustomMaterial();
+	    }
 
 		BaseClass::OnDataChanged( type );
 
@@ -3242,3 +3252,27 @@ void CWeaponCSBase::SetSilencer( bool state )
 		SetBodygroup( FindBodygroupByName( "silencer" ), state ? 0 : 1 );
 	}
 }
+
+#ifdef CLIENT_DLL
+void CWeaponCSBase::UpdateCustomMaterial()
+{
+    int iPaintKit = this->GetPaintKit();
+    if ( iPaintKit > 0 )
+	{
+		const SkinDefinition_t* pSkinDef = g_SkinDatabase.FindSkinByPaintKit( iPaintKit );
+		if ( pSkinDef )
+		{
+			FOR_EACH_VEC(pSkinDef->materials, i)
+			{
+				const SkinDefinition_t::MaterialData_t& matData = pSkinDef->materials[i];
+				IMaterial* pMat = g_SkinDatabase.GetSkinMaterial( iPaintKit, matData.iMaterialIndex );
+						
+				if ( pMat )
+				{
+					this->SetMaterialOverride( pMat, matData.iMaterialIndex );
+			    }
+			}
+    	}
+	}
+}
+#endif

@@ -33,14 +33,22 @@ public:
 
 	void Equip( CBaseAnimating *pOwner );
 	void UnEquip();
+    
+#ifdef CLIENT_DLL
+    void SetClientGlovePaintKit();
+    void OnDataChanged( DataUpdateType_t type );
+#endif
 
 	void UpdateGlovesModel();
 
 	int GetGloveID() { return m_nGloveID; }
 	void SetGloveID( int iGloveID ) { m_nGloveID = iGloveID; }
+    int GetGlovePaintKit() { return iGlovePaintKit; }
+    void SetGlovePaintKit( int GlovePaintKit ) { iGlovePaintKit = GlovePaintKit; }
 
 private:
 	CNetworkVar( int, m_nGloveID );
+    CNetworkVar(int, iGlovePaintKit );
 };
 
 #endif // WEAPON_BASECSGLOVES_H

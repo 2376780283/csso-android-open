@@ -35,6 +35,15 @@ public:
 	PropertySheet(Panel *parent, const char *panelName,ComboBox *combo);
 	~PropertySheet();
 
+	enum TabSide
+	{
+		TAB_TOP,
+		TAB_LEFT,
+	};
+
+	virtual void SetTabSide(TabSide side);
+	virtual TabSide GetTabSide() const;
+
 	virtual bool IsDraggableTab() const;
 	void		SetDraggableTabs( bool state );
 
@@ -184,6 +193,7 @@ private:
 	bool	m_bDraggableTabs;
 	bool	m_bContextButton;
 	bool	m_bKBNavigationEnabled;
+	TabSide m_TabSide;
 
 	CPanelAnimationVarAliasType( int, m_iTabXIndent, "tabxindent", "0", "proportional_int" );
 	CPanelAnimationVarAliasType( int, m_iTabXDelta, "tabxdelta", "0", "proportional_int" );

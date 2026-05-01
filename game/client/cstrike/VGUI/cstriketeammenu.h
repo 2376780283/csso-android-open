@@ -14,6 +14,8 @@
 #include <vgui_controls/Frame.h>
 #include <vgui_controls/Button.h>
 #include <game/client/iviewport.h>
+#include "cs_skin_database.h"
+#include "cs_loadout.h"
 
 using namespace vgui;
 
@@ -32,8 +34,8 @@ public:
 
 	void ParseLightInfo( KeyValues* inResourceData );
 	void SetPlayerModel( const char* pszModel );
-	void SetWeaponModel( const char* pszModel );
-	void SetGlovesModel( const char* pszModel );
+	void SetWeaponModel( const char* pszModel, C_CSPlayer *pPlayer, CSWeaponID nWeaponID );
+	void SetGlovesModel( const char* pszModel, C_CSPlayer *pPlayer, int team );
 	void SetSequence( const char* pszSequence, float flSequenceFade );
 
 	bool DoesModelSupportGloves( const char* pszGlovesViewModelName, const char* pszDefaultViewModelName );

@@ -53,6 +53,7 @@ private:
 	CNetworkVar( bool, m_bLightOnlyTarget );
 	CNetworkVar( bool, m_bLightWorld );
 	CNetworkVar( bool, m_bCameraSpace );
+	CNetworkVar( float, m_flBrightnessScale );
 	CNetworkVector( m_LinearFloatLightColor );
 	CNetworkVar( float, m_flAmbient );
 	CNetworkString( m_SpotlightTextureName, MAX_PATH );
@@ -78,6 +79,7 @@ BEGIN_DATADESC( CEnvProjectedTexture )
 	DEFINE_KEYFIELD( m_flNearZ, FIELD_FLOAT, "nearz" ),
 	DEFINE_KEYFIELD( m_flFarZ, FIELD_FLOAT, "farz" ),
 	DEFINE_KEYFIELD( m_nShadowQuality, FIELD_INTEGER, "shadowquality" ),
+	DEFINE_KEYFIELD( m_flBrightnessScale, FIELD_FLOAT, "brightnessscale" ),
 	DEFINE_FIELD( m_LinearFloatLightColor, FIELD_VECTOR ), 
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOn", InputTurnOn ),
@@ -103,6 +105,7 @@ IMPLEMENT_SERVERCLASS_ST( CEnvProjectedTexture, DT_EnvProjectedTexture )
 	SendPropBool( SENDINFO( m_bLightOnlyTarget ) ),
 	SendPropBool( SENDINFO( m_bLightWorld ) ),
 	SendPropBool( SENDINFO( m_bCameraSpace ) ),
+	SendPropFloat( SENDINFO( m_flBrightnessScale ) ),
 	SendPropVector( SENDINFO( m_LinearFloatLightColor ) ),
 	SendPropFloat( SENDINFO( m_flAmbient ) ),
 	SendPropString( SENDINFO( m_SpotlightTextureName ) ),
@@ -132,6 +135,7 @@ CEnvProjectedTexture::CEnvProjectedTexture( void )
 #endif
 
 	m_nSpotlightTextureFrame = 0;
+	m_flBrightnessScale = 1.0f;
 	m_LinearFloatLightColor.Init( 1.0f, 1.0f, 1.0f );
 	m_flAmbient = 0.0f;
 	m_flNearZ = 4.0f;

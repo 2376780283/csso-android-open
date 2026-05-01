@@ -8,6 +8,7 @@
 #include "BaseVSShader.h"
 #include "vertexlitgeneric_dx9_helper.h"
 #include "skin_dx9_helper.h"
+#include "phong_dx9_helper.h"
 
 #include "VertexLit_and_unlit_Generic_vs20.inc"
 #include "VertexLit_and_unlit_Generic_bump_vs20.inc"
@@ -109,7 +110,10 @@ void InitParamsVertexLitGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** para
 		}
 		else
 		{
-			InitParamsSkin_DX9( pShader, params, pMaterialName, info );
+			if ( g_pConfig->UseOldPhong() || !g_pHardwareConfig->SupportsShaderModel_3_0() )
+				InitParamsSkin_DX9( pShader, params, pMaterialName, info );
+			else
+				InitParamsPhong_DX9( pShader, params, pMaterialName, info );
 			return;
 		}
 	}
@@ -258,7 +262,10 @@ void InitVertexLitGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** params, bo
 		   params[info.m_nPhong]->GetIntValue() && 
 		 g_pHardwareConfig->SupportsPixelShaders_2_b() ) )
 	{
-		InitSkin_DX9( pShader, params, info );
+		if ( g_pConfig->UseOldPhong() || !g_pHardwareConfig->SupportsShaderModel_3_0() )
+			InitSkin_DX9( pShader, params, info );
+		else
+			InitPhong_DX9( pShader, params, info );
 		return;
 	}
 
@@ -1388,6 +1395,12 @@ static void DrawVertexLitGeneric_DX9_Internal( CBaseVSShader *pShader, IMaterial
 		// Controls for lerp-style paths through shader code (bump and non-bump have use different register)
 		float vShaderControls[4] = { fPixelFogType, fWriteDepthToAlpha, fWriteWaterFogToDestAlpha, fVertexAlpha	 };
 		DynamicCmdsOut.SetPixelShaderConstant( 12, vShaderControls, 1 );
+        
+        if ( IsBoolSet( info.m_nNoTint, params ) )
+		{
+			float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+			DynamicCmdsOut.SetPixelShaderConstant( 1, white );
+		}
 
 		// flashlightfixme: put this in common code.
 		if ( bHasFlashlight )
@@ -1428,7 +1441,10 @@ void DrawVertexLitGeneric_DX9( CBaseVSShader *pShader, IMaterialVar** params, IS
 {
 	if ( WantsSkinShader( params, info ) && g_pHardwareConfig->SupportsPixelShaders_2_b() && g_pConfig->UseBumpmapping() && g_pConfig->UsePhong() )
 	{
-		DrawSkin_DX9( pShader, params, pShaderAPI, pShaderShadow, info, vertexCompression, pContextDataPtr );
+		if ( g_pConfig->UseOldPhong() || !g_pHardwareConfig->SupportsShaderModel_3_0() )
+			DrawSkin_DX9( pShader, params, pShaderAPI, pShaderShadow, info, vertexCompression, pContextDataPtr );
+		else
+			DrawPhong_DX9( pShader, params, pShaderAPI, pShaderShadow, info, vertexCompression, pContextDataPtr );
 		return;
 	}
 	

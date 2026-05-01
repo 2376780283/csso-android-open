@@ -150,7 +150,15 @@ public:
 	virtual void ReloadFromWhitelistIfMarked() = 0;
 };
 
-extern void InsertKeyValues( KeyValues& dst, KeyValues& src, bool bCheckForExistence, bool bRecursive = false );
+// keep in sync with utils/vbsp/materialpatch.h!
+enum MaterialPatchType_t
+{
+	PATCH_INSERT = 0,	// Add the key no matter what
+	PATCH_REPLACE,		// Add the key only if it exists
+	PATCH_MISSING,		// Add the key only if it doesn't exist
+};
+
+extern void InsertKeyValues( KeyValues& dst, KeyValues& src, MaterialPatchType_t nPatchType, bool bRecursive = false );
 extern void WriteKeyValuesToFile( const char *pFileName, KeyValues& keyValues );
 extern void ExpandPatchFile( KeyValues& keyValues, KeyValues &patchKeyValues );
 // patchKeyValues accumulates keys applied by VMT patch files (this is necessary to make $fallbackmaterial

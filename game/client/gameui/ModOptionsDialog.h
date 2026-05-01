@@ -13,6 +13,7 @@
 
 #include "vgui_controls/PropertyDialog.h"
 #include "vgui_controls/KeyRepeat.h"
+#include "CustomMenu.h"
 
 //-----------------------------------------------------------------------------
 // Purpose: Holds all the game option pages
@@ -31,6 +32,12 @@ public:
 	void OnKeyCodePressed( vgui::KeyCode code );
 
 	MESSAGE_FUNC( OnGameUIHidden, "GameUIHidden" );	// called when the GameUI is hidden
+
+protected:
+	virtual void PaintBackground() override;
+
+private:
+	CGUIBlurHelper m_BlurHelper;
 };
 
-#endif // OPTIONSDIALOG_H
+#endif // MODOPTIONSDIALOG_H

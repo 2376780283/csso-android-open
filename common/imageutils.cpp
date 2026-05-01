@@ -1612,7 +1612,7 @@ ConversionErrorType	ImgUtl_ConvertToVTFAndDumpVMT( const char *pInPath, const ch
 	Q_strncpy(tgaPath, pInPath, sizeof(tgaPath));
 
 	// Construct a TGA version if necessary
-	if (stricmp(extension, "tga"))
+	if (Q_stricmp(extension, "tga") != 0)
 	{
 		//  It is not a TGA file, so create a temporary file name for the TGA you have to create
 
@@ -1763,6 +1763,8 @@ ConversionErrorType	ImgUtl_ConvertToVTFAndDumpVMT( const char *pInPath, const ch
 		Q_strncpy(finalPath, engine->GetGameDirectory(), sizeof(finalPath));
 #endif
 		Q_strncat(finalPath, szOutDir, sizeof(finalPath), COPY_ALL_CHARACTERS);
+		if (!g_pFullFileSystem->IsDirectory(finalPath))
+			g_pFullFileSystem->CreateDirHierarchy(finalPath);
 		Q_strncat(finalPath, vtfFilename, sizeof(finalPath), COPY_ALL_CHARACTERS);
 
 		c = finalPath + strlen(finalPath);
@@ -1778,7 +1780,7 @@ ConversionErrorType	ImgUtl_ConvertToVTFAndDumpVMT( const char *pInPath, const ch
 		//g_pFullFileSystem->CreateDirHierarchy("materials/VGUI/logos/", "GAME");
 
 		// write out the spray VMT file.
-		if ( strcmp(vtfPath, finalPath) )  // If they're not already the same
+		if ( Q_strcmp(vtfPath, finalPath) != 0 )
 		{
 			nErrorCode = ImgUtl_WriteGenericVMT(finalPath, pMaterialsSubDir);
 			if (nErrorCode != CE_SUCCESS)

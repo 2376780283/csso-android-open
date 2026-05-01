@@ -123,6 +123,8 @@ ConVar	spec_freeze_distance_max( "spec_freeze_distance_max", "200", FCVAR_CHEAT,
 
 static ConVar	cl_first_person_uses_world_model ( "cl_first_person_uses_world_model", "0", FCVAR_NONE, "Causes the third person model to be drawn instead of the view model" );
 
+ConVar	cl_showfirstperson_legs ( "cl_showfirstperson_legs", "1", FCVAR_CLIENTDLL | FCVAR_ARCHIVE, "shows legs in firstperson like cs2, IN DEVELOPMENT!!!" );
+
 ConVar demo_fov_override( "demo_fov_override", "0", FCVAR_CLIENTDLL | FCVAR_DONTRECORD, "If nonzero, this value will be used to override FOV during demo playback." );
 
 // This only needs to be approximate - it just controls the distance to the pivot-point of the head ("the neck") of the in-game character, not the player's real-world neck length.
@@ -443,6 +445,8 @@ C_BasePlayer::C_BasePlayer() : m_iv_vecViewOffset( "C_BasePlayer::m_iv_vecViewOf
 	m_hViewEntity = NULL;
 
 	m_pFlashlight = NULL;
+    
+    m_bFlashlightEnabled = false;
 
 	m_pCurrentVguiScreen = NULL;
 	m_pCurrentCommand = NULL;
@@ -501,7 +505,11 @@ C_BasePlayer::~C_BasePlayer()
 		s_pLocalPlayer = NULL;
 	}
 	
-	delete m_pFlashlight;
+	if ( m_bFlashlightEnabled )
+	{
+		FlashlightEffectManager().TurnOffFlashlight( true );
+		m_bFlashlightEnabled = false;
+	}
 }
 
 void MsgFunc_SendLastKillerDamageToClient( bf_read &msg )
@@ -1352,31 +1360,71 @@ void C_BasePlayer::TeamChange( int iNewTeam )
 //-----------------------------------------------------------------------------
 void C_BasePlayer::UpdateFlashlight()
 {
-	// The dim light is the flashlight.
-	if ( IsEffectActive( EF_DIMLIGHT ) )
+	// TERROR: if we're in-eye spectating, use that player's flashlight
+	C_BasePlayer *pFlashlightPlayer = this;
+	if ( !IsAlive() )
 	{
-		if (!m_pFlashlight)
+			if ( GetObserverMode() == OBS_MODE_IN_EYE )
+		{
+			pFlashlightPlayer = ToBasePlayer( GetObserverTarget() );
+		}
+	}
+
+			if ( pFlashlightPlayer )
+	{
+		FlashlightEffectManager().SetEntityIndex( pFlashlightPlayer->index );
+	}
+
+			// The dim light is the flashlight.
+	if ( pFlashlightPlayer && pFlashlightPlayer->IsAlive() && pFlashlightPlayer->IsEffectActive( EF_DIMLIGHT ) && !pFlashlightPlayer->GetViewEntity() )
+	{
+		// Make sure we're using the proper flashlight texture
+		const char *pszTextureName = pFlashlightPlayer->GetFlashlightTextureName();
+		if ( !m_bFlashlightEnabled )
 		{
 			// Turned on the headlight; create it.
-			m_pFlashlight = new CFlashlightEffect(index);
-
-			if (!m_pFlashlight)
-				return;
-
-			m_pFlashlight->TurnOn();
+			if ( pszTextureName )
+			{
+				FlashlightEffectManager().TurnOnFlashlight( pFlashlightPlayer->index, pszTextureName, pFlashlightPlayer->GetFlashlightFOV(),
+					pFlashlightPlayer->GetFlashlightFarZ(), pFlashlightPlayer->GetFlashlightLinearAtten() );
+			}
+			else
+			{
+				FlashlightEffectManager().TurnOnFlashlight( pFlashlightPlayer->index );
+			}
+			m_bFlashlightEnabled = true;
 		}
-
-		Vector vecForward, vecRight, vecUp;
-			EyeVectors( &vecForward, &vecRight, &vecUp );
-
-		// Update the light with the new position and direction.		
-		m_pFlashlight->UpdateLight( EyePosition(), vecForward, vecRight, vecUp, FLASHLIGHT_DISTANCE );
-	}
-	else if (m_pFlashlight)
+    }
+	else if ( m_bFlashlightEnabled )
 	{
 		// Turned off the flashlight; delete it.
-		delete m_pFlashlight;
-		m_pFlashlight = NULL;
+		FlashlightEffectManager().TurnOffFlashlight();
+		m_bFlashlightEnabled = false;
+	}
+    
+    if ( pFlashlightPlayer && m_bFlashlightEnabled )
+	{
+
+		Vector vecForward, vecRight, vecUp;
+			Vector vecPos;
+		//Check to see if we have an externally specified flashlight origin, if not, use eye vectors/render origin
+		if ( pFlashlightPlayer->m_vecFlashlightOrigin != vec3_origin && pFlashlightPlayer->m_vecFlashlightOrigin.IsValid() )
+		{
+			vecPos = pFlashlightPlayer->m_vecFlashlightOrigin;
+			vecForward = pFlashlightPlayer->m_vecFlashlightForward;
+			vecRight = pFlashlightPlayer->m_vecFlashlightRight;
+			vecUp = pFlashlightPlayer->m_vecFlashlightUp;
+		}
+		else
+		{
+			EyeVectors( &vecForward, &vecRight, &vecUp );
+			vecPos = GetRenderOrigin() + m_vecViewOffset;
+		}
+
+		// Update the light with the new position and direction.		
+		FlashlightEffectManager().UpdateFlashlight( vecPos, vecForward, vecRight, vecUp, pFlashlightPlayer->GetFlashlightFOV(), 
+			pFlashlightPlayer->CastsFlashlightShadows(), pFlashlightPlayer->GetFlashlightFarZ(), pFlashlightPlayer->GetFlashlightLinearAtten(),
+			pFlashlightPlayer->GetFlashlightTextureName() );
 	}
 }
 
@@ -1387,15 +1435,16 @@ void C_BasePlayer::UpdateFlashlight()
 void C_BasePlayer::Flashlight( void )
 {
 	UpdateFlashlight();
-
-	// Check for muzzle flash and apply to view model
-	C_BaseAnimating *ve = this;
-	if ( GetObserverMode() == OBS_MODE_IN_EYE )
-	{
-		ve = dynamic_cast< C_BaseAnimating* >( GetObserverTarget() );
-	}
 }
 
+void C_BasePlayer::TurnOffFlashlight( void )
+{
+	if ( m_bFlashlightEnabled )
+	{
+		FlashlightEffectManager().TurnOffFlashlight();
+		m_bFlashlightEnabled = false;
+	}
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Engine is asking whether to add this player to the visible entities list
@@ -2118,6 +2167,10 @@ bool C_BasePlayer::ShouldDrawThisPlayer()
 			return true;
 		}
 	}
+    else if ( InFirstPersonView() && cl_showfirstperson_legs.GetBool())
+    {
+        return true;
+    }
 	return false;
 }
 
@@ -2710,6 +2763,105 @@ void C_BasePlayer::OnObserverModeChange( bool bIsObserverTarget )
 		observerTarget->UpdateVisibility();
 		UpdateViewmodelVisibility( observerTarget );
 	}
+}
+
+static const char* g_pszBonesToScaleToZero[] =
+{
+    "neck_0", "head_0", "spine_3",
+    "clavicle_L", "arm_upper_L", "arm_lower_L", "hand_L",
+    "finger_middle_meta_L", "finger_middle_0_L", "finger_middle_1_L", "finger_middle_2_L",
+    "finger_pinky_meta_L", "finger_pinky_0_L", "finger_pinky_1_L", "finger_pinky_2_L",
+    "finger_index_meta_L", "finger_index_0_L", "finger_index_1_L", "finger_index_2_L",
+    "finger_thumb_0_L", "finger_thumb_1_L", "finger_thumb_2_L",
+    "finger_ring_meta_L", "finger_ring_0_L", "finger_ring_1_L", "finger_ring_2_L",
+    "weapon_hand_L", "arm_lower_L_TWIST", "arm_lower_L_TWIST1",
+    "arm_upper_L_TWIST", "arm_upper_L_TWIST1",
+    "clavicle_R", "arm_upper_R", "arm_lower_R", "hand_R",
+    "finger_middle_meta_R", "finger_middle_0_R", "finger_middle_1_R", "finger_middle_2_R",
+    "finger_pinky_meta_R", "finger_pinky_0_R", "finger_pinky_1_R", "finger_pinky_2_R",
+    "finger_index_meta_R", "finger_index_0_R", "finger_index_1_R", "finger_index_2_R",
+    "finger_thumb_0_R", "finger_thumb_1_R", "finger_thumb_2_R",
+    "finger_ring_meta_R", "finger_ring_0_R", "finger_ring_1_R", "finger_ring_2_R",
+    "weapon_hand_R", "arm_lower_R_TWIST", "arm_lower_R_TWIST1",
+    "arm_upper_R_TWIST", "jiggle_hood", "jiggle_back_micropouches", "jiggle_radio", "jiggle_front_pouch_02", "jiggle_front_pouch_01", "jiggle_front_micropouches", "jiggle_climbinggear_01", "jiggle_climbinggear_02", "jiggle_holster", "jiggle_primary", "arm_upper_R_TWIST1"
+};
+
+const char* pelvisBones[] = { "spine_1", "spine_2",
+    "pelvis", "leg_upper_L", "leg_upper_R"
+};
+
+const char* lowerLegBones[] = {
+    "leg_upper_L_TWIST", "leg_upper_L_TWIST1", "leg_lower_L", "ankle_L", "ball_L", 
+    "leg_upper_R_TWIST", "leg_upper_R_TWIST1", "leg_lower_R", "ankle_R", "ball_R"
+};
+
+bool C_BasePlayer::SetupBones(matrix3x4_t *pBoneToWorld, int nMaxBones, int boneMask, float currentTime)
+{
+    bool bResult = BaseClass::SetupBones(pBoneToWorld, nMaxBones, boneMask, currentTime);
+
+if (!bResult || !pBoneToWorld)
+    return bResult;
+    
+    if (!DrawingMainView())
+    {
+        return bResult;
+    }
+
+C_BasePlayer* pLocalPlayer = C_BasePlayer::GetLocalPlayer();
+if (!(this == pLocalPlayer && this->ShouldDraw() && !input->CAM_IsThirdPerson()))
+    return bResult;
+
+CStudioHdr* pStudioHdr = GetModelPtr();
+if (!pStudioHdr || !pStudioHdr->IsValid())
+    return bResult;
+
+QAngle ang = GetRenderAngles();
+Vector forward, right, up;
+AngleVectors(ang, &forward, &right, &up);
+
+Vector vanishOffset = -forward * 50.0f; 
+
+for (int i = 0; i < ARRAYSIZE(g_pszBonesToScaleToZero); ++i)
+{
+    int boneIndex = LookupBone(g_pszBonesToScaleToZero[i]);
+    if (boneIndex != -1 && boneIndex < nMaxBones)
+    {
+        Vector origin;
+        MatrixPosition(pBoneToWorld[boneIndex], origin);
+        origin += vanishOffset;
+        MatrixSetColumn(origin, 3, pBoneToWorld[boneIndex]);
+
+        MatrixScaleByZero(pBoneToWorld[boneIndex]);
+    }
+}
+
+Vector pelvisOffset = (-forward * 14.0f) + (up * 3.0f); 
+
+Vector lowerLegOffset = (-forward * 12.0f); 
+
+for (int i = 0; i < ARRAYSIZE(pelvisBones); ++i)
+{
+    int boneIndex = LookupBone(pelvisBones[i]);
+    if (boneIndex < 0 || boneIndex >= nMaxBones)
+        continue;
+
+    Vector origin;
+    MatrixPosition(pBoneToWorld[boneIndex], origin);
+
+    origin += pelvisOffset;
+    MatrixSetColumn(origin, 3, pBoneToWorld[boneIndex]);
+}
+for (int i = 0; i < ARRAYSIZE(lowerLegBones); ++i)
+{
+    int boneIndex = LookupBone(lowerLegBones[i]);
+    if (boneIndex < 0 || boneIndex >= nMaxBones)
+        continue;
+    Vector origin;
+    MatrixPosition(pBoneToWorld[boneIndex], origin);
+    origin += lowerLegOffset;
+    MatrixSetColumn(origin, 3, pBoneToWorld[boneIndex]);
+}
+    return bResult;
 }
 
 //-----------------------------------------------------------------------------

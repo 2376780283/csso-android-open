@@ -22,6 +22,9 @@
 
 #include "cs_player_shared.h"
 
+#define SPEECH_VOIP_PARTICLE_EFFECT_NAME "speech_voice"
+#define RADIO_VOICE_PARTICLE_EFFECT_NAME "radio_voice"
+
 class C_PhysicsProp;
 
 extern ConVar cl_disablefreezecam;
@@ -154,6 +157,7 @@ public:
 
 	virtual void Simulate();
 	virtual	void Spawn( void );
+    virtual void UpdateOnRemove( void );
 
 	void GiveCarriedHostage( EHANDLE hHostage );
 	void RefreshCarriedHostage( bool bForceCreate );
@@ -263,7 +267,11 @@ public:
 
 	virtual bool IsLookingAtWeapon( void ) const { return m_bIsLookingAtWeapon; }
 	virtual bool IsHoldingLookAtWeapon( void ) const { return m_bIsHoldingLookAtWeapon; }
-
+    
+    virtual const char			*GetVOIPParticleEffectName() const { return SPEECH_VOIP_PARTICLE_EFFECT_NAME; }
+	virtual const char			*GetRadioHeadParticleEffectName() const { return RADIO_VOICE_PARTICLE_EFFECT_NAME; }
+	virtual Vector				GetParticleHeadLabelOffset( void );
+	
 	virtual int DrawModel( int flags );
 
 	virtual bool ShouldReceiveProjectedTextures( int flags )
@@ -306,6 +314,11 @@ public:
 
 	virtual void CalcFreezeCamView( Vector& eyeOrigin, QAngle& eyeAngles, float& fov );
 	virtual void CalcDeathCamView( Vector& eyeOrigin, QAngle& eyeAngles, float& fov );
+    
+    void UpdateFreezeCamFlashlightEffect( C_BaseEntity *pTarget, float flAmount );
+	void CancelFreezeCamFlashlightEffect();
+	bool m_bFreezeCamFlashlightActive;
+	CTextureReference m_freezeCamSpotLightTexture;
 
 	virtual float GetDeathCamInterpolationTime();
 	float GetFreezeFrameInterpolant( void );
@@ -466,14 +479,19 @@ public:
 	virtual void NotifyOnLayerChangeCycle( const CAnimationLayer* pLayer, const float flNewCycle ) OVERRIDE;
 
 	bool IsInHostageRescueZone( void );
+    
+    int GetAddonPaintKit( int addonIndex ) const;
 
 	// This is a combination of the ADDON_ flags in cs_shareddefs.h.
 	CNetworkVar( int, m_iAddonBits );
 
 	// Clients don't know about holstered weapons, so we need to be told about them here
 	CNetworkVar( int, m_iPrimaryAddon );
+    CNetworkVar( int, m_iPrimaryAddonPaintKit );
 	CNetworkVar( int, m_iSecondaryAddon );
+    CNetworkVar( int, m_iSecondaryAddonPaintKit );
 	CNetworkVar( int, m_iKnifeAddon );
+    CNetworkVar( int, m_iKnifeAddonPaintKit );
 
 	// How long the progress bar takes to get to the end. If this is 0, then the progress bar
 	// should not be drawn.
@@ -637,10 +655,15 @@ public:
 	CNetworkVar( int, m_iLoadoutSlotAgentCT );
 	CNetworkVar( int, m_iLoadoutSlotAgentT );
 	CNetworkVar( int, m_iLoadoutSlotKnifeWeaponCT );
+    CNetworkVar( int, m_iLoadoutSlotKnifeWeaponSkinCT );
 	CNetworkVar( int, m_iLoadoutSlotKnifeWeaponT );
+    CNetworkVar( int, m_iLoadoutSlotKnifeWeaponSkinT );
 	CNetworkVar( int, m_iLoadoutSlotGlovesCT );
 	CNetworkVar( int, m_iLoadoutSlotGlovesT );
+    CNetworkVar( int, m_iGlovePaintKitID );
 	EHANDLE	m_hLoadoutGloves;
+    
+    int GetGlovePlayer( int GlovePaintKit ) { return m_iGlovePaintKitID = GlovePaintKit; }
 
 	float m_flThirdpersonRecoil;
 

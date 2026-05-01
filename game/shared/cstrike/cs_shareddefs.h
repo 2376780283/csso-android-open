@@ -44,7 +44,7 @@
 #define MAX_HOSTAGE_RESCUES			4
 #define HOSTAGE_RULE_CAN_PICKUP		1
 #define MAX_KNIVES					19
-#define MAX_MUSIC					61
+#define MAX_MUSIC					84
 
 #define MAX_MODEL_STRING_SIZE 256
 

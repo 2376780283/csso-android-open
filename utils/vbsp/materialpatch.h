@@ -23,10 +23,12 @@ struct MaterialPatchInfo_t
 	}
 };
 
+// keep in sync with materialsystem/imaterialinternal.h!
 enum MaterialPatchType_t
 {
 	PATCH_INSERT = 0,	// Add the key no matter what
 	PATCH_REPLACE,		// Add the key only if it exists
+	PATCH_MISSING,		// Add the key only if it doesn't exist
 };
 
 void CreateMaterialPatch( const char *pOriginalMaterialName, const char *pNewMaterialName,

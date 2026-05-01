@@ -12,6 +12,9 @@
 #endif
 
 #include <vgui_controls/PropertyPage.h>
+#include <vgui_controls/ScrollBar.h>
+#include <vgui_controls/Panel.h>
+#include <vgui_controls/Label.h>
 
 class CCvarToggleCheckButton;
 class CLabeledCommandComboBox;
@@ -36,13 +39,35 @@ public:
 
 	MESSAGE_FUNC( OnControlModified, "ControlModified" );
 
+	// Called when layout needs to be performed
+	virtual void PerformLayout() override;
+
 protected:
+	MESSAGE_FUNC_PARAMS( OnScrollBarSliderMoved, "ScrollBarSliderMoved", data );
+	MESSAGE_FUNC_PARAMS( OnSliderMoved, "SliderMoved", data );
+
 	// Called when page is loaded.  Data should be reloaded from document into controls.
 	virtual void OnResetData();
 	// Called when the OK / Apply button is pressed.  Changed data should be written into document.
 	virtual void OnApplyChanges();
 
 private:
+	// Labels for CT weapons
+	vgui::Label* m_pM4ComboBoxLabel;
+	vgui::Label* m_pHKP2000ComboBoxLabel;
+	vgui::Label* m_pFiveSevenComboBoxLabel;
+	vgui::Label* m_pMP7CTComboBoxLabel;
+	vgui::Label* m_pDeagleCTComboBoxLabel;
+
+	// Labels for T weapons
+	vgui::Label* m_pTec9ComboBoxLabel;
+	vgui::Label* m_pMP7TComboBoxLabel;
+	vgui::Label* m_pDeagleTComboBoxLabel;
+
+	// Other labels
+	vgui::Label* m_pMusicSelectionLabel;
+
+	// ComboBox controls
 	CLabeledCommandComboBox *m_pLoadoutM4ComboBox;
 	CLabeledCommandComboBox *m_pLoadoutHKP2000ComboBox;
 	CLabeledCommandComboBox *m_pLoadoutFiveSevenComboBox;
@@ -57,6 +82,10 @@ private:
 #if !INSTANT_MUSIC_CHANGE
 	bool						m_bNeedToWarnAboutMusic;
 #endif
+
+	// Scroll panel controls
+	vgui::ScrollBar*			m_pVScrollBar;
+	vgui::Panel*				m_pScrollContainer;
 };
 
 #endif // MODOPTIONSSUBLOADOUT_H

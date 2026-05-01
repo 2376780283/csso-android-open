@@ -126,12 +126,17 @@
 #include "mumble.h"
 
 #include "gametypes.h"
+#include "SkinProcessor.h"
+#include "cs_skin_database.h"
 
 // NVNT includes
 #include "hud_macros.h"
 #include "haptics/ihaptics.h"
 #include "haptics/haptic_utils.h"
 #include "haptics/haptic_msgs.h"
+
+// imgui libs
+#include "imgui_system.h"
 
 #if defined( TF_CLIENT_DLL )
 #include "abuse_report.h"
@@ -1051,6 +1056,8 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 	C_BaseTempEntity::PrecacheTempEnts();
 
 	input->Init_All();
+	
+	g_pImguiSystem->Init();
 
 	VGui_CreateGlobalPanels();
 
@@ -1079,6 +1086,9 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 	ClientWorldFactoryInit();
 
 	C_BaseAnimating::InitBoneSetupThreadPool();
+    
+    g_SkinDatabase.Initialize();
+    g_SkinProcessor.Initialize();
 
 #if defined( CSTRIKE_DLL )
 	// Load the game types.
@@ -1206,6 +1216,8 @@ void CHLClient::Shutdown( void )
 	gHUD.Shutdown();
 	VGui_Shutdown();
 	gTouch.Shutdown();
+	
+	g_pImguiSystem->Shutdown();
 
 	ParticleMgr()->Term();
 	

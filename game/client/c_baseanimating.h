@@ -26,6 +26,7 @@
 #include "ragdoll_shared.h"
 #include "tier0/threadtools.h"
 #include "datacache/idatacache.h"
+#include "materialsystem/imaterial.h"
 
 #define LIPSYNC_POSEPARAM_NAME "mouth"
 #define NUM_HITBOX_FIRES	10
@@ -93,7 +94,78 @@ typedef unsigned int			ClientSideAnimationListHandle_t;
 #define		INVALID_CLIENTSIDEANIMATION_LIST_HANDLE	(ClientSideAnimationListHandle_t)~0
 
 
-class C_BaseAnimating : public C_BaseEntity, private IModelLoadCallback
+class CCustomMaterialOwner
+{
+public:
+    CCustomMaterialOwner() = default;
+    ~CCustomMaterialOwner() = default;
+
+    IMaterial *GetCustomMaterial( int nIndex ) const;
+    void SetCustomMaterial( IMaterial *pMaterial, int nIndex );
+
+    bool HasCustomMaterial( int nIndex ) const;
+    inline int GetCustomMaterialCount() const { return m_pMaterials.Count(); }
+
+    void ClearCustomMaterials( bool bPurge = false );
+    void DuplicateCustomMaterialsToOther( CCustomMaterialOwner *pOther ) const;
+
+private:
+    // index == studio material index
+    CUtlVector< IMaterial * > m_pMaterials;
+};
+
+inline IMaterial *CCustomMaterialOwner::GetCustomMaterial( int nIndex ) const
+{
+    return ( nIndex >= 0 && nIndex < m_pMaterials.Count() )
+        ? m_pMaterials[ nIndex ]
+        : nullptr;
+}
+
+inline void CCustomMaterialOwner::SetCustomMaterial( IMaterial *pMaterial, int nIndex )
+{
+    if ( nIndex < 0 )
+        return;
+
+    while ( m_pMaterials.Count() <= nIndex )
+    {
+        m_pMaterials.AddToTail( nullptr );
+    }
+
+    m_pMaterials[ nIndex ] = pMaterial;
+}
+
+inline bool CCustomMaterialOwner::HasCustomMaterial( int nIndex ) const
+{
+    return ( nIndex >= 0 &&
+             nIndex < m_pMaterials.Count() &&
+             m_pMaterials[ nIndex ] != nullptr );
+}
+
+inline void CCustomMaterialOwner::ClearCustomMaterials( bool bPurge )
+{
+    if ( bPurge )
+        m_pMaterials.Purge();
+    else
+        m_pMaterials.RemoveAll();
+}
+
+inline void CCustomMaterialOwner::DuplicateCustomMaterialsToOther( CCustomMaterialOwner *pOther ) const
+{
+    if ( !pOther )
+        return;
+
+    pOther->ClearCustomMaterials( true );
+
+    for ( int i = 0; i < m_pMaterials.Count(); ++i )
+    {
+        if ( m_pMaterials[ i ] )
+        {
+            pOther->SetCustomMaterial( m_pMaterials[ i ], i );
+        }
+    }
+}
+
+class C_BaseAnimating : public C_BaseEntity, public CCustomMaterialOwner, private IModelLoadCallback
 {
 public:
 	DECLARE_CLASS( C_BaseAnimating, C_BaseEntity );
@@ -158,8 +230,10 @@ public:
 	virtual bool OnInternalDrawModel( ClientModelRenderInfo_t *pInfo );
 	virtual bool OnPostInternalDrawModel( ClientModelRenderInfo_t *pInfo );
 	void		DoInternalDrawModel( ClientModelRenderInfo_t *pInfo, DrawModelState_t *pState, matrix3x4_t *pBoneToWorldArray = NULL );
+    void SetMaterialOverride(IMaterial *pMaterial, int nMaterialIndex);
+    void ClearMaterialOverride();
 
-	//
+	
 	virtual CMouthInfo *GetMouth();
 	virtual void	ControlMouth( CStudioHdr *pStudioHdr );
 
@@ -511,6 +585,16 @@ private:
 	void							UpdateRelevantInterpolatedVars();
 	void							AddBaseAnimatingInterpolatedVars();
 	void							RemoveBaseAnimatingInterpolatedVars();
+    
+    CCustomMaterialOwner *GetCustomMaterialOwner() { return &m_CustomMaterialOwner; }
+    const CCustomMaterialOwner *GetCustomMaterialOwner() const { return &m_CustomMaterialOwner; }
+
+    bool HasCustomMaterials() const
+    {
+        return m_CustomMaterialOwner.GetCustomMaterialCount() > 0;
+    }
+    
+    CCustomMaterialOwner m_CustomMaterialOwner;
 
 public:
 	CRagdoll						*m_pRagdoll;

@@ -14,6 +14,7 @@
 #endif
 
 #include <materialsystem/IShader.h>
+#include "shaderlib/shadercombosemantics.h"
 
 //-----------------------------------------------------------------------------
 // forward declarations
@@ -29,6 +30,8 @@ class IShaderDLL
 public:
 	// Adds a shader to the list of shaders
 	virtual void InsertShader( IShader *pShader ) = 0;
+
+	virtual void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics ) = 0;
 };
 
 

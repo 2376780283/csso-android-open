@@ -1,4 +1,4 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2006, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -40,8 +40,13 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		SHADER_PARAM( SELFILLUM_ENVMAPMASK_ALPHA, SHADER_PARAM_TYPE_FLOAT,"0.0","defines that self illum value comes from env map mask alpha" )
 		SHADER_PARAM( SELFILLUMFRESNEL, SHADER_PARAM_TYPE_BOOL, "0", "Self illum fresnel" )
 		SHADER_PARAM( SELFILLUMFRESNELMINMAXEXP, SHADER_PARAM_TYPE_VEC4, "0", "Self illum fresnel min, max, exp" )
+		SHADER_PARAM( SELFILLUMFRESNELENABLEDTHISFRAME, SHADER_PARAM_TYPE_BOOL, "0", "Self illum fresnel" )
+
 		SHADER_PARAM( ALPHATESTREFERENCE, SHADER_PARAM_TYPE_FLOAT, "0.0", "" )	
+		SHADER_PARAM( ALLOWFENCERENDERSTATEHACK, SHADER_PARAM_TYPE_BOOL, "0", "" )
+		SHADER_PARAM( VERTEXALPHATEST, SHADER_PARAM_TYPE_INTEGER, "0", "" )
 		SHADER_PARAM( FLASHLIGHTNOLAMBERT, SHADER_PARAM_TYPE_BOOL, "0", "Flashlight pass sets N.L=1.0" )
+		SHADER_PARAM( LOWQUALITYFLASHLIGHTSHADOWS, SHADER_PARAM_TYPE_BOOL, "0", "Force low quality flashlight shadows (faster)" )
 
 		// Debugging term for visualizing ambient data on its own
 		SHADER_PARAM( AMBIENTONLY, SHADER_PARAM_TYPE_INTEGER, "0", "Control drawing of non-ambient light ()" )
@@ -52,13 +57,16 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		SHADER_PARAM( LIGHTWARPTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "shadertest/BaseTexture", "1D ramp texture for tinting scalar diffuse term" )
 		SHADER_PARAM( PHONGWARPTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "shadertest/BaseTexture", "warp the specular term" )
 		SHADER_PARAM( PHONGFRESNELRANGES, SHADER_PARAM_TYPE_VEC3, "[0  0.5  1]", "Parameters for remapping fresnel output" )
+		SHADER_PARAM( PHONGALBEDOBOOST, SHADER_PARAM_TYPE_FLOAT, "1.0", "Phong albedo overbrightening factor (specular mask channel should be authored to account for this)" )
 		SHADER_PARAM( PHONGBOOST, SHADER_PARAM_TYPE_FLOAT, "1.0", "Phong overbrightening factor (specular mask channel should be authored to account for this)" )
 		SHADER_PARAM( PHONGEXPONENTTEXTURE, SHADER_PARAM_TYPE_TEXTURE, "shadertest/BaseTexture", "Phong Exponent map" )
 		SHADER_PARAM( PHONG, SHADER_PARAM_TYPE_BOOL, "0", "enables phong lighting" )
+		SHADER_PARAM( FORCEPHONG, SHADER_PARAM_TYPE_BOOL, "0", "forces Phong lighting, even at low GPU levels (Phong must already be enabled)" )
 		SHADER_PARAM( BASEMAPALPHAPHONGMASK, SHADER_PARAM_TYPE_INTEGER, "0", "indicates that there is no normal map and that the phong mask is in base alpha" )
 		SHADER_PARAM( INVERTPHONGMASK, SHADER_PARAM_TYPE_INTEGER, "0", "invert the phong mask (0=full phong, 1=no phong)" )
 		SHADER_PARAM( ENVMAPFRESNEL, SHADER_PARAM_TYPE_FLOAT, "0", "Degree to which Fresnel should be applied to env map" )
 		SHADER_PARAM( SELFILLUMMASK, SHADER_PARAM_TYPE_TEXTURE, "shadertest/BaseTexture", "If we bind a texture here, it overrides base alpha (if any) for self illum" )
+		SHADER_PARAM( BASEMAPLUMINANCEPHONGMASK, SHADER_PARAM_TYPE_INTEGER, "0", "indicates that the base luminance should be used to mask phong" )
 
 	    // detail (multi-) texturing
 	    SHADER_PARAM( DETAILBLENDMODE, SHADER_PARAM_TYPE_INTEGER, "0", "mode for combining detail texture with base. 0=normal, 1= additive, 2=alpha blend detail over base, 3=crossfade" )
@@ -76,6 +84,31 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		SHADER_PARAM( SEAMLESS_BASE, SHADER_PARAM_TYPE_BOOL, "0", "whether to apply seamless mapping to the base texture. requires a smooth model." )
 		SHADER_PARAM( SEAMLESS_DETAIL, SHADER_PARAM_TYPE_BOOL, "0", "where to apply seamless mapping to the detail texture." )
 	    SHADER_PARAM( SEAMLESS_SCALE, SHADER_PARAM_TYPE_FLOAT, "1.0", "the scale for the seamless mapping. # of repetions of texture per inch." )
+
+		// distance coded line art parameters
+		SHADER_PARAM( DISTANCEALPHA, SHADER_PARAM_TYPE_BOOL, "0", "Use distance-coded alpha generated from hi-res texture" )
+		SHADER_PARAM( DISTANCEALPHAFROMDETAIL, SHADER_PARAM_TYPE_BOOL, "0", "Take the distance-coded values from the detail alpha channel" )
+
+		SHADER_PARAM( SOFTEDGES, SHADER_PARAM_TYPE_BOOL, "0", "Enable soft edges to distance coded textures." )
+		SHADER_PARAM( EDGESOFTNESSSTART, SHADER_PARAM_TYPE_FLOAT, "0.6", "Start value for soft edges for distancealpha." )
+		SHADER_PARAM( EDGESOFTNESSEND, SHADER_PARAM_TYPE_FLOAT, "0.5", "End value for soft edges for distancealpha." )
+		SHADER_PARAM( SCALEEDGESOFTNESSBASEDONSCREENRES, SHADER_PARAM_TYPE_BOOL, "0", "Scale the size of the soft edges based upon screen resolution" )
+
+		SHADER_PARAM( GLOW, SHADER_PARAM_TYPE_BOOL, "0", "Enable glow/inner map for distance coded textures." )
+		SHADER_PARAM( GLOWCOLOR, SHADER_PARAM_TYPE_COLOR, "[1 1 1]", "color of outter glow for distance coded line art." )
+		SHADER_PARAM( GLOWALPHA, SHADER_PARAM_TYPE_FLOAT, "1.0", "Base glow alpha amount for distance coded line art." )
+		SHADER_PARAM( GLOWSTART, SHADER_PARAM_TYPE_FLOAT, "0.7", "start value for glow alpha for distancealpha." )
+		SHADER_PARAM( GLOWEND, SHADER_PARAM_TYPE_FLOAT, "0.5", "end value for glow alpha for distancealpha." )
+		SHADER_PARAM( GLOWX, SHADER_PARAM_TYPE_FLOAT, "0.0", "texture offset x for glow mask for distance coded line art." )
+		SHADER_PARAM( GLOWY, SHADER_PARAM_TYPE_FLOAT, "0.0", "texture offset y for glow mask for distance coded line art." )
+		SHADER_PARAM( OUTLINE, SHADER_PARAM_TYPE_BOOL, "0", "Enable outline for distance coded textures." )
+		SHADER_PARAM( OUTLINECOLOR, SHADER_PARAM_TYPE_COLOR, "[1 1 1]", "color of outline for distance coded images." )
+		SHADER_PARAM( OUTLINEALPHA, SHADER_PARAM_TYPE_FLOAT, "0.0", "alpha value for outline for distance coded images." )
+		SHADER_PARAM( OUTLINESTART0, SHADER_PARAM_TYPE_FLOAT, "0.0", "outer start value for outline for distance coded images." )
+		SHADER_PARAM( OUTLINESTART1, SHADER_PARAM_TYPE_FLOAT, "0.0", "inner start value for outline for distance coded images." )
+		SHADER_PARAM( OUTLINEEND0, SHADER_PARAM_TYPE_FLOAT, "0.0", "inner end value for outline for distance coded images." )
+		SHADER_PARAM( OUTLINEEND1, SHADER_PARAM_TYPE_FLOAT, "0.0", "outer end value for outline for distance coded images." )
+		SHADER_PARAM( SCALEOUTLINESOFTNESSBASEDONSCREENRES, SHADER_PARAM_TYPE_BOOL, "0", "Scale the size of the soft part of the outline based upon screen resolution" )
 
 		// Emissive Scroll Pass
 		SHADER_PARAM( EMISSIVEBLENDENABLED, SHADER_PARAM_TYPE_BOOL, "0", "Enable emissive blend pass" )
@@ -130,13 +163,37 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 
 		SHADER_PARAM( SEPARATEDETAILUVS, SHADER_PARAM_TYPE_BOOL, "0", "Use texcoord1 for detail texture" )
 		SHADER_PARAM( LINEARWRITE, SHADER_PARAM_TYPE_INTEGER, "0", "Disables SRGB conversion of shader results." )
+		SHADER_PARAM( GAMMACOLORREAD, SHADER_PARAM_TYPE_INTEGER, "0", "Disables SRGB conversion of color texture read." )
 		SHADER_PARAM( DEPTHBLEND, SHADER_PARAM_TYPE_INTEGER, "0", "fade at intersection boundaries. Only supported without bumpmaps" )
 		SHADER_PARAM( DEPTHBLENDSCALE, SHADER_PARAM_TYPE_FLOAT, "50.0", "Amplify or reduce DEPTHBLEND fading. Lower values make harder edges." )
 
+		SHADER_PARAM( RECEIVEFLASHLIGHT, SHADER_PARAM_TYPE_INTEGER, "0", "Forces this material to receive flashlights." )
+
+		SHADER_PARAM( AMBIENTOCCLUSION, SHADER_PARAM_TYPE_FLOAT, "0.0", "Amount of screen space ambient occlusion to use (0..1 range)")
+
 		SHADER_PARAM( BLENDTINTBYBASEALPHA, SHADER_PARAM_TYPE_BOOL, "0", "Use the base alpha to blend in the $color modulation")
+		SHADER_PARAM( NOTINT, SHADER_PARAM_TYPE_BOOL, "0", "Disable tinting" )
+		
+		SHADER_PARAM( TINTREPLACESBASECOLOR, SHADER_PARAM_TYPE_FLOAT, "0", "blend between tint acting as a multiplication versus a replace" )
+
+		SHADER_PARAM( DESATURATEWITHBASEALPHA, SHADER_PARAM_TYPE_FLOAT, "0.0", "Use the base alpha to desaturate the base texture.  Set to non-zero to enable, value gets multiplied into the alpha channel before desaturating.")
+
+		SHADER_PARAM( ALLOWDIFFUSEMODULATION, SHADER_PARAM_TYPE_BOOL, "1", "Allow per-instance color modulation")
+
+		SHADER_PARAM( ENVMAPFRESNELMINMAXEXP, SHADER_PARAM_TYPE_VEC3, "[0.0 1.0 2.0]", "Min/max fresnel range and exponent for vertexlitgeneric" )
+		SHADER_PARAM( BASEALPHAENVMAPMASKMINMAXEXP, SHADER_PARAM_TYPE_VEC3, "[1.0 0.0 1.0]", "" )
+
+		// This is to allow phong materials to disable half lambert. Half lambert has always been forced on in phong,
+		// so the only safe way to allow artists to disable half lambert is to create this param that disables the
+		// default behavior of forcing half lambert on.
+		SHADER_PARAM( PHONGDISABLEHALFLAMBERT, SHADER_PARAM_TYPE_BOOL, "0", "Disable half lambert for phong" )
+			
+		SHADER_PARAM( DECALBLENDMODE, SHADER_PARAM_TYPE_INTEGER, "0", "mode for combining decal texture with base. 0=normal(decal*srca + base*(1-srca), 1= mod, 2=mod2x, 3=additive" )
+
 		SHADER_PARAM( ENVMAPLIGHTSCALE, SHADER_PARAM_TYPE_FLOAT, "0.0", "How much the lightmap effects environment map reflection, 0.0 is off, 1.0 will allow complete blackness of the environment map if the lightmap is black" )
 		SHADER_PARAM( ENVMAPLIGHTSCALEMINMAX, SHADER_PARAM_TYPE_VEC2, "[0.0 1.0]", "Thresholds for the lightmap envmap effect.  Setting the min higher increases the minimum light amount at which the envmap gets nerfed to nothing." )
-		SHADER_PARAM( BLENDTINTCOLOROVERBASE, SHADER_PARAM_TYPE_FLOAT, "0", "blend between tint acting as a multiplication versus a replace" )
+
+		SHADER_PARAM( PEARLESCENT, SHADER_PARAM_TYPE_FLOAT, "0.0", "Pearlescent effect" )
 	END_SHADER_PARAMS
 
 	void SetupVars( VertexLitGeneric_DX9_Vars_t& info )
@@ -166,13 +223,17 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		info.m_nEnvmapSaturation = ENVMAPSATURATION;
 		info.m_nEnvmapOptional = ENVMAPOPTIONAL;
 		info.m_nAlphaTestReference = ALPHATESTREFERENCE;
+		info.m_nAllowFenceRenderStateHack = ALLOWFENCERENDERSTATEHACK;
+		info.m_nVertexAlphaTest = VERTEXALPHATEST;
 		info.m_nFlashlightNoLambert = FLASHLIGHTNOLAMBERT;
+		info.m_nLowQualityFlashlightShadows = LOWQUALITYFLASHLIGHTSHADOWS;
 
 		info.m_nFlashlightTexture = FLASHLIGHTTEXTURE;
 		info.m_nFlashlightTextureFrame = FLASHLIGHTTEXTUREFRAME;
 		info.m_nSelfIllumEnvMapMask_Alpha = SELFILLUM_ENVMAPMASK_ALPHA;
 		info.m_nSelfIllumFresnel = SELFILLUMFRESNEL;
 		info.m_nSelfIllumFresnelMinMaxExp = SELFILLUMFRESNELMINMAXEXP;
+		info.m_nSelfIllumFresnelEnabledThisFrame = SELFILLUMFRESNELENABLEDTHISFRAME;
 
 		info.m_nAmbientOnly = AMBIENTONLY;
 		info.m_nPhongExponent = PHONGEXPONENT;
@@ -182,13 +243,18 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		info.m_nDiffuseWarpTexture = LIGHTWARPTEXTURE;
 		info.m_nPhongWarpTexture = PHONGWARPTEXTURE;
 		info.m_nPhongBoost = PHONGBOOST;
+		info.m_nPhongAlbedoBoost = PHONGALBEDOBOOST;
 		info.m_nPhongFresnelRanges = PHONGFRESNELRANGES;
 		info.m_nPhong = PHONG;
+		info.m_nForcePhong = FORCEPHONG;
 		info.m_nBaseMapAlphaPhongMask = BASEMAPALPHAPHONGMASK;
+		info.m_nBaseMapLuminancePhongMask = BASEMAPLUMINANCEPHONGMASK;
 		info.m_nEnvmapFresnel = ENVMAPFRESNEL;
 		info.m_nDetailTextureCombineMode = DETAILBLENDMODE;
 		info.m_nDetailTextureBlendFactor = DETAILBLENDFACTOR;
 		info.m_nDetailTextureTransform = DETAILTEXTURETRANSFORM;
+
+		info.m_nBaseMapLuminancePhongMask = BASEMAPLUMINANCEPHONGMASK;
 
 		// Rim lighting parameters
 		info.m_nRimLight = RIMLIGHT;
@@ -201,9 +267,39 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		info.m_nSeamlessDetail = SEAMLESS_DETAIL;
 		info.m_nSeamlessBase = SEAMLESS_BASE;
 
+		// distance coded line art
+		info.m_nDistanceAlpha = DISTANCEALPHA;
+		info.m_nDistanceAlphaFromDetail = DISTANCEALPHAFROMDETAIL;
+
+		// soft edges
+		info.m_nSoftEdges = SOFTEDGES;
+		info.m_nEdgeSoftnessStart = EDGESOFTNESSSTART;
+		info.m_nEdgeSoftnessEnd = EDGESOFTNESSEND;
+		info.m_nScaleEdgeSoftnessBasedOnScreenRes = SCALEEDGESOFTNESSBASEDONSCREENRES;
+
+		// glow
+		info.m_nGlow = GLOW;
+		info.m_nGlowColor = GLOWCOLOR;
+		info.m_nGlowAlpha = GLOWALPHA;
+		info.m_nGlowStart = GLOWSTART;
+		info.m_nGlowEnd = GLOWEND;
+		info.m_nGlowX = GLOWX;
+		info.m_nGlowY = GLOWY;
+
+		// outline
+		info.m_nOutline = OUTLINE;
+		info.m_nOutlineColor = OUTLINECOLOR;
+		info.m_nOutlineAlpha = OUTLINEALPHA;
+		info.m_nOutlineStart0 = OUTLINESTART0;
+		info.m_nOutlineStart1 = OUTLINESTART1;
+		info.m_nOutlineEnd0 = OUTLINEEND0;
+		info.m_nOutlineEnd1 = OUTLINEEND1;
+		info.m_nScaleOutlineSoftnessBasedOnScreenRes = SCALEOUTLINESOFTNESSBASEDONSCREENRES;
+
 		info.m_nSeparateDetailUVs = SEPARATEDETAILUVS;
 
 		info.m_nLinearWrite = LINEARWRITE;
+		info.m_nGammaColorRead = GAMMACOLORREAD;
 		info.m_nDetailTint = DETAILTINT;
 		info.m_nInvertPhongMask = INVERTPHONGMASK;
 
@@ -211,10 +307,30 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		info.m_nDepthBlendScale = DEPTHBLENDSCALE;
 
 		info.m_nSelfIllumMask = SELFILLUMMASK;
+		info.m_nReceiveFlashlight = RECEIVEFLASHLIGHT;
+
+		info.m_nAmbientOcclusion = AMBIENTOCCLUSION;
+
 		info.m_nBlendTintByBaseAlpha = BLENDTINTBYBASEALPHA;
-		info.m_nTintReplacesBaseColor = BLENDTINTCOLOROVERBASE;
+		info.m_nNoTint = NOTINT;
+
+		info.m_nTintReplacesBaseColor = TINTREPLACESBASECOLOR;
+
+		info.m_nDesaturateWithBaseAlpha = DESATURATEWITHBASEALPHA;
+
+		info.m_nAllowDiffuseModulation = ALLOWDIFFUSEMODULATION;
+
+		info.m_nEnvMapFresnelMinMaxExp = ENVMAPFRESNELMINMAXEXP;
+		info.m_nBaseAlphaEnvMapMaskMinMaxExp = BASEALPHAENVMAPMASKMINMAXEXP;
+
+		info.m_nPhongDisableHalfLambert = PHONGDISABLEHALFLAMBERT;
+
+		info.m_nDecalTextureCombineMode = DECALBLENDMODE;
+
 		info.m_nEnvMapLightScale = ENVMAPLIGHTSCALE;
 		info.m_nEnvMapLightScaleMinMax = ENVMAPLIGHTSCALEMINMAX;
+
+		info.m_nPearlescent = PEARLESCENT;
 	}
 
 	// Cloak Pass
@@ -243,10 +359,6 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 		info.m_nSheenMapMaskOffsetY = SHEENMAPMASKOFFSETY;
 		info.m_nSheenMapMaskDirection = SHEENMAPMASKDIRECTION;
 		info.m_nSheenIndex = SHEENINDEX;
-
-		info.m_nBumpmap = BUMPMAP;
-		info.m_nBumpFrame = BUMPFRAME;
-		info.m_nBumpTransform = BUMPTRANSFORM;
 	}
 
 	bool NeedsPowerOfTwoFrameBufferTexture( IMaterialVar **params, bool bCheckSpecificToThisFrame ) const 
@@ -259,8 +371,6 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 				return true;
 			// else, not cloaking this frame, so check flag2 in case the base material still needs it
 		}
-		if ( params[SHEENPASSENABLED]->GetIntValue() ) // If material supports weapon sheen
-			return true;
 
 		// Check flag2 if not drawing cloak pass
 		return IS_FLAG2_SET( MATERIAL_VAR2_NEEDS_POWER_OF_TWO_FRAME_BUFFER_TEXTURE ); 
@@ -337,7 +447,7 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 			InitParamsCloakBlendedPass( this, params, pMaterialName, info );
 		}
 
-		// Sheen Pass
+		// Weapon Sheen Pass
 		if ( !params[SHEENPASSENABLED]->IsDefined() )
 		{
 			params[SHEENPASSENABLED]->SetIntValue( 0 );
@@ -348,7 +458,7 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 			SetupVarsWeaponSheenPass( info );
 			InitParamsWeaponSheenPass( this, params, pMaterialName, info );
 		}
-		
+
 		// Emissive Scroll Pass
 		if ( !params[EMISSIVEBLENDENABLED]->IsDefined() )
 		{
@@ -372,19 +482,53 @@ BEGIN_VS_SHADER( VertexLitGeneric, "Help for VertexLitGeneric" )
 			SetupVarsFleshInteriorBlendedPass( info );
 			InitParamsFleshInteriorBlendedPass( this, params, pMaterialName, info );
 		}
+		
+		if ( !params[PHONGBOOST]->IsDefined() )
+		{
+			params[PHONGBOOST]->SetFloatValue( 1.0f );
+		}
+
+		if ( !params[PHONGFRESNELRANGES]->IsDefined() )
+		{
+			params[PHONGFRESNELRANGES]->SetVecValue( 1.0f, 1.0f, 1.0f );
+		}
+
+		if ( !params[PHONGALBEDOBOOST]->IsDefined() )
+		{
+			if ( params[PHONGBOOST]->IsDefined() )
+			{
+				params[PHONGALBEDOBOOST]->SetFloatValue( params[PHONGBOOST]->GetFloatValue() );
+			}
+			else
+			{
+				params[PHONGALBEDOBOOST]->SetFloatValue( 1.0f );
+			}
+		}
+
+		// FLASHLIGHTFIXME
+		params[FLASHLIGHTTEXTURE]->SetStringValue( "effects/flashlight001" );
+
+		// Write over $basetexture with $albedo if we are going to be using diffuse normal mapping.
+		if ( vars.m_nAlbedo != -1 && g_pConfig->UseBumpmapping() && vars.m_nBumpmap != -1 && params[vars.m_nBumpmap]->IsDefined() && params[vars.m_nAlbedo]->IsDefined() &&
+			params[vars.m_nBaseTexture]->IsDefined() )
+		{
+			params[vars.m_nBaseTexture]->SetStringValue( params[vars.m_nAlbedo]->GetStringValue() );
+		}
+
+		if ( vars.m_nWrinkle != -1 && vars.m_nStretch != -1 && params[vars.m_nWrinkle]->IsDefined() && params[vars.m_nStretch]->IsDefined() &&
+			vars.m_nBaseTexture != -1 && params[vars.m_nBaseTexture]->IsDefined() )
+		{
+			params[vars.m_nBaseTexture]->SetStringValue( params[vars.m_nWrinkle]->GetStringValue() );
+		}
+
+		if ( IS_FLAG_SET( MATERIAL_VAR_MODEL ) )
+		{
+			SET_FLAGS2( MATERIAL_VAR2_SUPPORTS_HW_SKINNING );
+		}
 	}
 
 	SHADER_FALLBACK
 	{
-		if (g_pHardwareConfig->GetDXSupportLevel() < 70)
-			return "VertexLitGeneric_DX6";
-
-		if (g_pHardwareConfig->GetDXSupportLevel() < 80)
-			return "VertexLitGeneric_DX7";
-
-		if (g_pHardwareConfig->GetDXSupportLevel() < 90)
-			return "VertexLitGeneric_DX8";
-
 		return 0;
 	}
 

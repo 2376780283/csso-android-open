@@ -66,13 +66,13 @@ const char *GetOriginalMaterialNameForPatchedMaterial( const char *pPatchMateria
 }
 
 
-void CreateMaterialPatchRecursive( KeyValues *pOriginalKeyValues, KeyValues *pPatchKeyValues, int nKeys, const MaterialPatchInfo_t *pInfo )
+void CreateMaterialPatchRecursive( KeyValues *pOriginalKeyValues, KeyValues *pPatchKeyValues, int nKeys, const MaterialPatchInfo_t *pInfo, MaterialPatchType_t nPatchType )
 {
 	int i;
 	for( i = 0; i < nKeys; i++ )
 	{
 		const char *pVal = pOriginalKeyValues->GetString( pInfo[i].m_pKey, NULL );
-		if( !pVal )
+		if( (nPatchType == PATCH_REPLACE && !pVal) || (nPatchType == PATCH_MISSING && pVal) ) // PATCH_MISSING is not used in this code, but in case we ever do...
 			continue;
 		if( pInfo[i].m_pRequiredOriginalValue && Q_stricmp( pVal, pInfo[i].m_pRequiredOriginalValue ) != 0 )
 			continue;
@@ -81,7 +81,7 @@ void CreateMaterialPatchRecursive( KeyValues *pOriginalKeyValues, KeyValues *pPa
 	KeyValues *pScan;
 	for( pScan = pOriginalKeyValues->GetFirstTrueSubKey(); pScan; pScan = pScan->GetNextTrueSubKey() )
 	{
-		CreateMaterialPatchRecursive( pScan, pPatchKeyValues->FindKey( pScan->GetName(), true ), nKeys, pInfo );
+		CreateMaterialPatchRecursive( pScan, pPatchKeyValues->FindKey( pScan->GetName(), true ), nKeys, pInfo, nPatchType );
 	}
 }
 
@@ -109,14 +109,33 @@ void CreateMaterialPatch( const char *pOriginalMaterialName, const char *pNewMat
 
 	kv->SetString( "include", pOldVMTFile );
 
-	const char *pSectionName = (nPatchType == PATCH_INSERT) ? "insert" : "replace";
+	const char *pSectionName;
+	switch ( nPatchType )
+	{
+		case PATCH_REPLACE:
+			pSectionName = "replace";
+			break;
+		case PATCH_MISSING:
+			pSectionName = "missing";
+			break;
+		default: // or PATCH_MISSING
+			pSectionName = "insert";
+			break;
+	}
 	KeyValues *section = kv->FindKey( pSectionName, true );
 
-	if( nPatchType == PATCH_REPLACE )
+	if ( nPatchType == PATCH_INSERT )
+	{
+		for ( int i = 0; i < nKeys; ++i )
+		{
+			section->SetString( pInfo[i].m_pKey, pInfo[i].m_pValue );
+		}
+	}
+	else
 	{
 		char name[512];
 		Q_snprintf( name, 512, "materials/%s.vmt", GetOriginalMaterialNameForPatchedMaterial( pOriginalMaterialName ) );
-		KeyValues *origkv = new KeyValues( "blah" );
+		KeyValues* origkv = new KeyValues( "blah" );
 
 		if ( !origkv->LoadFromFile( g_pFileSystem, name ) )
 		{
@@ -125,15 +144,8 @@ void CreateMaterialPatch( const char *pOriginalMaterialName, const char *pNewMat
 			return;
 		}
 
-		CreateMaterialPatchRecursive( origkv, section, nKeys, pInfo );
+		CreateMaterialPatchRecursive( origkv, section, nKeys, pInfo, nPatchType );
 		origkv->deleteThis();
-	}
-	else
-	{
-		for ( int i = 0; i < nKeys; ++i )
-		{
-			section->SetString( pInfo[i].m_pKey, pInfo[i].m_pValue );
-		}
 	}
 	
 	// Write patched .vmt into a memory buffer
@@ -297,12 +309,13 @@ bool LoadKeyValuesFromPackOrFile( const char *pFileName, KeyValues *pKeyValues )
 //-----------------------------------------------------------------------------
 // VMT parser
 //-----------------------------------------------------------------------------
-static void InsertKeyValues( KeyValues &dst, KeyValues& src, bool bCheckForExistence )
+static void InsertKeyValues( KeyValues &dst, KeyValues& src, MaterialPatchType_t nPatchType )
 {
 	KeyValues *pSrcVar = src.GetFirstSubKey();
 	while( pSrcVar )
 	{
-		if ( !bCheckForExistence || dst.FindKey( pSrcVar->GetName() ) )
+		bool bFound = dst.FindKey( pSrcVar->GetName() ) ? true : false;
+		if ( nPatchType == PATCH_INSERT || (nPatchType == PATCH_REPLACE && bFound) || (nPatchType == PATCH_MISSING && !bFound) )
 		{
 			switch( pSrcVar->GetDataType() )
 			{
@@ -348,14 +361,21 @@ static void ExpandPatchFile( KeyValues &keyValues )
 		KeyValues *pInsertSection = keyValues.FindKey( "insert" );
 		if( pInsertSection )
 		{
-			InsertKeyValues( *includeKeyValues, *pInsertSection, false );
+			InsertKeyValues( *includeKeyValues, *pInsertSection, PATCH_INSERT );
 			keyValues = *includeKeyValues;
 		}
 
 		KeyValues *pReplaceSection = keyValues.FindKey( "replace" );
 		if( pReplaceSection )
 		{
-			InsertKeyValues( *includeKeyValues, *pReplaceSection, true );
+			InsertKeyValues( *includeKeyValues, *pReplaceSection, PATCH_REPLACE );
+			keyValues = *includeKeyValues;
+		}
+
+		KeyValues *pMissingSection = keyValues.FindKey( "missing" );
+		if( pMissingSection )
+		{
+			InsertKeyValues( *includeKeyValues, *pMissingSection, PATCH_MISSING );
 			keyValues = *includeKeyValues;
 		}
 

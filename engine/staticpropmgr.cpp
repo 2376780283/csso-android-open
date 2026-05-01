@@ -581,13 +581,6 @@ bool CStaticProp::Init( int index, StaticPropLump_t &lump, model_t *pModel )
 	}
 	g_MakingDevShots = CommandLine()->FindParm( "-makedevshots" ) ? true : false;
 
-	// If we do Mod_SetMaterialVarFlag() while running with the dedicated server, we crash.
-	//  RJ said he'd save my butt and look into this. (Hip hip horray! We love RJ!)
-	if ( !sv.IsDedicated() && m_pModel )
-	{
-		Mod_SetMaterialVarFlag( pModel, MATERIAL_VAR_IGNORE_ALPHA_MODULATION, true );
-	}
-
 	return true;
 }
 

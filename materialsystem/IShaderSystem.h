@@ -17,6 +17,7 @@
 
 #include "interface.h"
 #include <materialsystem/IShader.h>
+#include "shaderlib/shadercombosemantics.h"
 
 //-----------------------------------------------------------------------------
 // Forward declarations
@@ -68,6 +69,8 @@ public:
 
 	// Are we using graphics?
 	virtual bool CanUseEditorMaterials() const = 0;
+
+	virtual void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics ) = 0;
 };
 
 
@@ -92,6 +95,10 @@ public:
 
 	// Returns information about each shader defined in this DLL
 	virtual IShader *GetShader( int nShader ) = 0;
+
+	// Deals with all of the shader combo semantics from inc files.
+	virtual int ShaderComboSemanticsCount() const = 0;
+	virtual const ShaderComboSemantics_t *GetComboSemantics( int n ) = 0;
 };
 
 

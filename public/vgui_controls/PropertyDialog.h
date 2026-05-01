@@ -14,6 +14,7 @@
 
 #include <vgui/VGUI.h>
 #include <vgui_controls/Frame.h>
+#include <vgui_controls/PropertySheet.h>
 
 namespace vgui
 {
@@ -47,6 +48,11 @@ public:
 	void SetOKButtonVisible(bool state);
 	void SetCancelButtonVisible(bool state);
 	void SetApplyButtonVisible(bool state);
+	
+	void SetFixedSheetWidth(int width);
+	void SetCenterSheetEnabled(bool bEnable);
+	void SetTabSide(PropertySheet::TabSide side);
+	void SetTabWidth(int width);
 
 	/* MESSAGES SENT
 		"ResetData"			- sent when page is loaded.  Data should be reloaded from document into controls.
@@ -62,6 +68,7 @@ protected:
 
 	// vgui overrides
 	virtual void PerformLayout();
+	virtual void ApplySettings(KeyValues *inResourceData);
 	virtual void OnCommand(const char *command);
 	virtual void ActivateBuildMode();
 	virtual void OnKeyCodeTyped(KeyCode code);
@@ -75,6 +82,9 @@ private:
 	Button *_okButton;
 	Button *_cancelButton;
 	Button *_applyButton;
+	
+	int m_iFixedSheetWidth;
+	bool m_bCenterSheet;
 
 	CPanelAnimationVar( int, m_iSheetInsetBottom, "sheetinset_bottom", "32" );
 };

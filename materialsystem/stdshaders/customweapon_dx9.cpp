@@ -1,4 +1,4 @@
-//========= Copyright © Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Shader for compositing weapon textures
 //
@@ -113,7 +113,7 @@ SHADER_INIT_PARAMS()
 
 SHADER_FALLBACK
 {
-	if ( g_pHardwareConfig->GetDXSupportLevel() < 90 )
+	if ( !g_pHardwareConfig->SupportsShaderModel_3_0() )
 		return "VertexLitGeneric";
 
 	return 0;

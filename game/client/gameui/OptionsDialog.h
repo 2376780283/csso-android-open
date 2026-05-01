@@ -13,6 +13,7 @@
 
 #include "vgui_controls/PropertyDialog.h"
 #include "vgui_controls/KeyRepeat.h"
+#include "CustomMenu.h"
 
 //-----------------------------------------------------------------------------
 // Purpose: Holds all the game option pages
@@ -34,10 +35,15 @@ public:
 
 	MESSAGE_FUNC( OnGameUIHidden, "GameUIHidden" );	// called when the GameUI is hidden
 
+protected:
+	virtual void PaintBackground() override;
+
 private:
 	class COptionsSubAudio *m_pOptionsSubAudio;
 	class COptionsSubVideo *m_pOptionsSubVideo;
 	vgui::PropertyPage *m_pOptionsSubMultiplayer;
+
+	CGUIBlurHelper m_BlurHelper;
 };
 
 

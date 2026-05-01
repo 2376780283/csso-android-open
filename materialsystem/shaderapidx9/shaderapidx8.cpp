@@ -643,6 +643,7 @@ public:
 	}
 
 	virtual void MarkUnusedVertexFields( unsigned int nFlags, int nTexCoordCount, bool *pUnusedTexCoords );
+	virtual void SetScreenSizeForVPOS( int pshReg = 32 );
 
 public:
 	// Methods of CShaderAPIBase
@@ -1276,6 +1277,10 @@ private:
 	FlashlightState_t m_FlashlightState;
 	VMatrix m_FlashlightWorldToTexture;
 	ITexture *m_pFlashlightDepthTexture;
+	float m_pFlashlightAtten[4];
+	float m_pFlashlightPos[4];
+	float m_pFlashlightColor[4];
+	float m_pFlashlightTweaks[4];
 
 	CShaderAPIDx8( CShaderAPIDx8 const& );
 
@@ -1353,6 +1358,8 @@ private:
 
 	void SetPixelShaderFogParams( int reg );
 	void SetPixelShaderFogParams( int reg, ShaderFogMode_t fogMode );
+	void SetPixelShaderFogParams_CSGO( int reg );
+	void SetPixelShaderFogParams_CSGO( int reg, ShaderFogMode_t fogMode );
 
 	void SetVertexShaderCameraPos()
 	{
@@ -1596,6 +1603,8 @@ private:
 	void PrintfVA( char *fmt, va_list vargs );
 	void Printf( const char *fmt, ... );	
 	float Knob( char *knobname, float *setvalue = NULL );
+
+	void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics );
 
 	// "normal" back buffer and depth buffer.  Need to keep this around so that we
 	// know what to set the render target to when we are done rendering to a texture.
@@ -2772,6 +2781,26 @@ inline void CShaderAPIDx8::SetRenderState( D3DRENDERSTATETYPE state, DWORD val, 
 #else
 	#define SetRenderStateConstMacro(t, state, val ) t->SetRenderState( state, val );
 #endif
+
+inline void CShaderAPIDx8::SetScreenSizeForVPOS( int pshReg /* = 32 */)
+{
+	int nWidth, nHeight;
+	ITexture *pTexture = ShaderAPI()->GetRenderTargetEx( 0 );
+	if ( pTexture == NULL )
+	{
+		ShaderAPI()->GetBackBufferDimensions( nWidth, nHeight );
+	}
+	else
+	{
+		nWidth  = pTexture->GetActualWidth();
+		nHeight = pTexture->GetActualHeight();
+	}
+
+	// Set constant to enable translation of VPOS to render target coordinates in ps_3_0
+	float vScreenSize[4] = { 1.0f/(float)nWidth, 1.0f/(float)nHeight, 0.5f/(float)nWidth, 0.5f/(float)nHeight };
+
+	SetPixelShaderConstantInternal( pshReg, vScreenSize, 1, true );
+}
 
 //-----------------------------------------------------------------------------
 // Commits viewports
@@ -6528,6 +6557,13 @@ void CShaderAPIDx8::ExecuteCommandBuffer( uint8 *pCmdBuf )
 				SetPixelShaderFogParams( nReg );			// !! speed fixme
 				break;
 			}
+			case CBCMD_SETPIXELSHADERFOGPARAMS_CSGO:
+			{
+				int nReg = GetData<int>( pCmdBuf + sizeof( int ) );
+				pCmdBuf += 2 * sizeof( int );
+				SetPixelShaderFogParams_CSGO( nReg );			// !! speed fixme
+				break;
+			}
 			case CBCMD_STORE_EYE_POS_IN_PSCONST:
 			{
 				int nReg = GetData<int>( pCmdBuf + sizeof( int ) );
@@ -6618,6 +6654,81 @@ void CShaderAPIDx8::ExecuteCommandBuffer( uint8 *pCmdBuf )
 				int nIdx = GetData<int>( pCmdBuf + sizeof( int ) );
 				ShaderManager()->SetVertexShaderIndex( nIdx );
 				pCmdBuf += 2 * sizeof( int );
+				break;
+			}
+
+		case CBCMD_SET_PIXEL_SHADER_FLASHLIGHT_STATE:
+			{
+				int nLightSampler		= GetData<int>( pCmdBuf + sizeof( int ) );
+				int nDepthSampler		= GetData<int>( pCmdBuf + 2 * sizeof( int ) );
+				int nShadowNoiseSampler = GetData<int>( pCmdBuf + 3 * sizeof( int ) );
+				int nColorConst			= GetData<int>( pCmdBuf + 4 * sizeof( int ) );
+				int nAttenConst			= GetData<int>( pCmdBuf + 5 * sizeof( int ) );
+				int nOriginConst		= GetData<int>( pCmdBuf + 6 * sizeof( int ) );
+				int nDepthTweakConst	= GetData<int>( pCmdBuf + 7 * sizeof( int ) );
+				int nScreenScaleConst	= GetData<int>( pCmdBuf + 8 * sizeof( int ) );
+				int nWorldToTextureConstant = GetData<int>( pCmdBuf + 9 * sizeof( int ) );
+				bool bFlashlightNoLambert = GetData<int>( pCmdBuf + 10 * sizeof( int ) ) != 0;
+				bool bSinglePassFlashlight = GetData<int>( pCmdBuf + 11 * sizeof( int ) ) != 0;
+				pCmdBuf += 12 * sizeof( int );
+
+				ShaderAPITextureHandle_t hTexture = g_pShaderUtil->GetShaderAPITextureBindHandle( m_FlashlightState.m_pSpotlightTexture, m_FlashlightState.m_nSpotlightTextureFrame, 0 );
+				BindTexture( (Sampler_t)nLightSampler, hTexture ); // !!!BUG!!!srgb or not?
+
+				SetPixelShaderConstantInternal( nAttenConst, m_pFlashlightAtten, 1, false );
+				SetPixelShaderConstantInternal( nOriginConst, m_pFlashlightPos, 1, false );
+
+				m_pFlashlightColor[3] = bFlashlightNoLambert ? 2.0f : 0.0f; // This will be added to N.L before saturate to force a 1.0 N.L term
+
+				// DX10 hardware and single pass flashlight require a hack scalar since the flashlight is added in linear space
+				float flashlightColor[4] = { m_pFlashlightColor[0], m_pFlashlightColor[1], m_pFlashlightColor[2], m_pFlashlightColor[3] };
+				if ( ( g_pHardwareConfig->UsesSRGBCorrectBlending() ) || ( bSinglePassFlashlight ) )
+				{
+					// Magic number that works well on the 360 and NVIDIA 8800
+					flashlightColor[0] *= 2.5f;
+					flashlightColor[1] *= 2.5f;
+					flashlightColor[2] *= 2.5f;
+				}
+
+				SetPixelShaderConstantInternal( nColorConst, flashlightColor, 1, false );
+
+				if ( nWorldToTextureConstant >= 0 )
+				{
+					SetPixelShaderConstantInternal( nWorldToTextureConstant, m_FlashlightWorldToTexture.Base(), 4, false );
+				}
+
+				BindStandardTexture( (Sampler_t)nShadowNoiseSampler, TEXTURE_SHADOW_NOISE_2D );
+				if( m_pFlashlightDepthTexture && m_FlashlightState.m_bEnableShadows && ShaderUtil()->GetConfig().ShadowDepthTexture() )
+				{
+					ShaderAPITextureHandle_t hDepthTexture = g_pShaderUtil->GetShaderAPITextureBindHandle( m_pFlashlightDepthTexture, 0, 0 );
+					BindTexture( (Sampler_t)nDepthSampler, hDepthTexture );
+
+					SetPixelShaderConstantInternal( nDepthTweakConst, m_pFlashlightTweaks, 1, false );
+
+					// Dimensions of screen, used for screen-space noise map sampling
+					float vScreenScale[4] = {1280.0f / 32.0f, 720.0f / 32.0f, 0, 0};
+					int nWidth, nHeight;
+					BaseClass::GetBackBufferDimensions( nWidth, nHeight );
+
+					int nTexWidth, nTexHeight;
+					GetStandardTextureDimensions( &nTexWidth, &nTexHeight, TEXTURE_SHADOW_NOISE_2D );
+
+					vScreenScale[0] = (float) nWidth  / nTexWidth;
+					vScreenScale[1] = (float) nHeight / nTexHeight;
+					vScreenScale[2] = 1.0f / m_FlashlightState.m_flShadowMapResolution;
+					vScreenScale[3] = 2.0f / m_FlashlightState.m_flShadowMapResolution;
+					SetPixelShaderConstantInternal( nScreenScaleConst, vScreenScale, 1, false );
+				}
+				else
+				{
+					BindStandardTexture( (Sampler_t)nDepthSampler, TEXTURE_WHITE );
+				}
+
+				if ( IsX360() )
+				{
+					SetBooleanPixelShaderConstant( 0, &m_FlashlightState.m_nShadowQuality, 1 );
+				}
+
 				break;
 			}
 
@@ -13023,17 +13134,103 @@ void CShaderAPIDx8::SetPixelShaderFogParams( int reg )
 	SetPixelShaderFogParams( reg, m_TransitionTable.CurrentShadowState()->m_FogMode );
 }
 
+void CShaderAPIDx8::SetPixelShaderFogParams_CSGO( int reg, ShaderFogMode_t fogMode )
+{
+	m_DelayedShaderConstants.iPixelShaderFogParams = reg; //save it off in case the ShaderFogMode_t disables fog. We only find out later.
+	float fogParams[4];
+
+	MaterialFogMode_t pixelFogMode = GetSceneFogMode();
+
+	if( (pixelFogMode != MATERIAL_FOG_NONE) && ( fogMode != SHADER_FOGMODE_DISABLED ) )
+	{
+		float ooFogRange = 1.0f;
+
+		float fStart = m_VertexShaderFogParams[0];
+		float fEnd = m_VertexShaderFogParams[1];
+
+		// Check for divide by zero
+		if ( fEnd != fStart )
+		{
+			ooFogRange = 1.0f / ( fEnd - fStart );
+		}
+
+		// Fixed-function-blended per-vertex fog requires some inverted params since a fog factor of 0 means fully fogged and 1 means no fog.
+		// We could implement shader fog the same way, but would require an extra subtract in the vertex and/or pixel shader, which we want to avoid.
+		fogParams[0] = 1.0f - ooFogRange * fEnd; // -start / ( fogEnd - fogStart )
+		fogParams[1] = m_DynamicState.m_FogZ; // water height
+		fogParams[2] = clamp( m_flFogMaxDensity, 0.0f, 1.0f ); // Max fog density
+		fogParams[3] = ooFogRange; // 1 / ( fogEnd - fogStart );
+	}
+	else
+	{
+		// Fixed-function-blended per-vertex fog requires some inverted params since a fog factor of 0 means fully fogged and 1 means no fog.
+		// We could implement shader fog the same way, but would require an extra subtract in the vertex and/or pixel shader, which we want to avoid.
+		//emulating MATERIAL_FOG_NONE by setting the parameters so that CalcRangeFog() always returns 0. Gets rid of a dynamic combo across the ps2x set.
+		fogParams[0] = 0.0f;
+		fogParams[1] = -FLT_MAX;
+		fogParams[2] = 0.0f;
+		fogParams[3] = 0.0f;
+	}
+
+	// cFogEndOverFogRange, cFogOne, unused, cOOFogRange
+	SetPixelShaderConstant( reg, fogParams, 1 );
+}
+
+void CShaderAPIDx8::SetPixelShaderFogParams_CSGO( int reg )
+{
+	ShadowState_t const *pState = m_TransitionTable.CurrentShadowState();
+	if ( pState )
+	{
+		SetPixelShaderFogParams_CSGO( reg, pState->m_FogMode );
+	}
+	else
+	{
+		// Have to do this so that m_DelayedShaderConstants.iPixelShaderFogParams gets updated so that we 
+		// get this set properly when the currnent shadow state is set.  If we don't do this, the 
+		// first draw call of every frame will not get a fog constant set.
+		SetPixelShaderFogParams_CSGO( reg, SHADER_FOGMODE_DISABLED );
+	}
+}
+
 void CShaderAPIDx8::SetFlashlightState( const FlashlightState_t &state, const VMatrix &worldToTexture )
 {
 	LOCK_SHADERAPI();
 	SetFlashlightStateEx( state, worldToTexture, NULL );
 }
 
+FORCEINLINE float ShadowAttenFromState( const FlashlightState_t &state )
+{
+	// DX10 requires some hackery due to sRGB/blend ordering change from DX9, which makes the shadows too light
+	if ( g_pHardwareConfig->UsesSRGBCorrectBlending() )
+		return state.m_flShadowAtten * 0.1f; // magic number
+
+	return state.m_flShadowAtten;
+}
+
+FORCEINLINE float ShadowFilterFromState( const FlashlightState_t &state )
+{
+	// We developed shadow maps at 1024, so we expect the penumbra size to have been tuned relative to that
+	return state.m_flShadowFilterSize / 1024.0f;
+}
+
+FORCEINLINE void HashShadow2DJitter( const float fJitterSeed, float *fU, float* fV )
+{
+	const int nTexRes = 128;
+	int nSeed = fmod (fJitterSeed, 1.0f) * nTexRes * nTexRes;
+
+	int nRow = nSeed / nTexRes;
+	int nCol = nSeed % nTexRes;
+
+	// Div and mod to get an individual texel in the fTexRes x fTexRes grid
+	*fU = nRow / (float) nTexRes;	// Row
+	*fV = nCol / (float) nTexRes;	// Column
+}
+
+ConVar r_flashlightbrightness( "r_flashlightbrightness", "0.25", FCVAR_CHEAT );
 void CShaderAPIDx8::SetFlashlightStateEx( const FlashlightState_t &state, const VMatrix &worldToTexture, ITexture *pFlashlightDepthTexture )
 {
 	LOCK_SHADERAPI();
 	// fixme: do a test here.
-	FlushBufferedPrimitives();
 	m_FlashlightState = state;
 	m_FlashlightWorldToTexture = worldToTexture;
 	m_pFlashlightDepthTexture = pFlashlightDepthTexture;
@@ -13043,6 +13240,45 @@ void CShaderAPIDx8::SetFlashlightStateEx( const FlashlightState_t &state, const 
 		m_FlashlightState.m_bEnableShadows = false;
 		m_pFlashlightDepthTexture = NULL;
 	}
+
+	// FIXME: This is shader specific code, only in here because of the command-buffer
+	// stuff required to make the 360 be fast. We need this to be in the shader DLLs,
+	// callable from shaderapidx8 in a fast way somehow.
+
+	// Cache off pixel shader + vertex shader values
+	m_pFlashlightAtten[0] = m_FlashlightState.m_fConstantAtten;		// Set the flashlight attenuation factors
+	m_pFlashlightAtten[1] = m_FlashlightState.m_fLinearAtten;
+	m_pFlashlightAtten[2] = m_FlashlightState.m_fQuadraticAtten;
+	m_pFlashlightAtten[3] = m_FlashlightState.m_FarZ; // PiMoN: must be m_FarZAtten, but its the same as m_FarZ
+
+	m_pFlashlightPos[0] = m_FlashlightState.m_vecLightOrigin[0];		// Set the flashlight origin
+	m_pFlashlightPos[1] = m_FlashlightState.m_vecLightOrigin[1];
+	m_pFlashlightPos[2] = m_FlashlightState.m_vecLightOrigin[2];
+	m_pFlashlightPos[3] = m_FlashlightState.m_FarZ;
+
+	float flFlashlightScale = r_flashlightbrightness.GetFloat();
+
+	if ( IsPC() && !g_pHardwareConfig->GetHDREnabled() )
+	{
+		// Non-HDR path requires 2.0 flashlight
+		flFlashlightScale = 2.0f;
+	}
+
+	flFlashlightScale *= m_FlashlightState.m_fBrightnessScale;
+
+	// Generate pixel shader constant
+	float const *pFlashlightColor = m_FlashlightState.m_Color;
+	m_pFlashlightColor[0] = flFlashlightScale * pFlashlightColor[0];
+	m_pFlashlightColor[1] = flFlashlightScale * pFlashlightColor[1];
+	m_pFlashlightColor[2] = flFlashlightScale * pFlashlightColor[2];
+	m_pFlashlightColor[3] = pFlashlightColor[3];	// not used, will be whacked by ExecuteCommandBuffer
+
+	// Red flashlight for testing
+	//m_pFlashlightColor[0] = 0.5f; m_pFlashlightColor[1] = 0.0f; m_pFlashlightColor[2] = 0.0f;
+
+	m_pFlashlightTweaks[0] = ShadowFilterFromState( m_FlashlightState );
+	m_pFlashlightTweaks[1] = ShadowAttenFromState( m_FlashlightState );
+	HashShadow2DJitter( m_FlashlightState.m_flShadowJitterSeed, &m_pFlashlightTweaks[2], &m_pFlashlightTweaks[3] );
 }
 
 const FlashlightState_t &CShaderAPIDx8::GetFlashlightState( VMatrix &worldToTexture ) const
@@ -14229,6 +14465,11 @@ bool CShaderAPIDx8::SetRenderTargetInternalXbox( ShaderAPITextureHandle_t hRende
 #endif
 
 	return true;
+}
+
+void CShaderAPIDx8::AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics )
+{
+	ShaderManager()->AddShaderComboInformation( pSemantics );
 }
 
 

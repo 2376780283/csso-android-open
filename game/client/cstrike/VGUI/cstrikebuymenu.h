@@ -97,6 +97,7 @@ public:
 	virtual void OnCursorExited();
 
 	void SetName( const char* pszName );
+    void SetItemName( const char* pszWeaponName, const char* pszSkinName );
 	void SetDescription( const char* pszDescription );
 	void SetPrice( int iPrice );
 	void SetWeaponID( CSWeaponID nWeaponID );
@@ -151,6 +152,8 @@ public:
 	void ResetRotation();
 
 	bool DoesModelSupportGloves( const char* pszGlovesViewModelName, const char* pszDefaultViewModelName );
+	
+	void SetWeaponSkin( C_CSPlayer *pPlayer, CSWeaponID weaponID ); 
 
 private:
 	int m_nFOV;
@@ -158,6 +161,7 @@ private:
 	Vector m_vecCameraPos;
 	QAngle m_angCameraAng;
 	Vector m_vecAmbientLight;
+	CSWeaponID m_nCurrentWeaponID;
 	LightDesc_t m_pLightDesc[MATERIAL_MAX_LIGHT_COUNT];
 
 	int m_nNumLightDescs;
@@ -239,7 +243,7 @@ public:
 
 	void ShowCategory( KeyValues* kvCategory );
 	void HideCategory();
-	void SetPlayerImageWeapon( const char* pszWeaponModel, const char* pszWeaponSequence );
+    void SetPlayerImageWeapon( const char* pszWeaponModel, const char* pszWeaponSequence, CSWeaponID weaponID );
 	void SetItemNameAndDescription( const char* pszName, const char* pszDescription );
 	void ResetWeapon();
 	void ShowSpecialMessage( const char* pszText, BuyMenuSpecialMessageType_t nMessageType );
@@ -252,7 +256,7 @@ private:
 	Label* m_pBuyTimeLeftLabel;
 	Label* m_pItemNameLabel;
 	Label* m_pItemDescriptionLabel;
-	Panel* m_pBuyItemsBackground;
+	ImagePanel* m_pBuyItemsBackground;
 	CCSBuyMenuPlayerImage* m_pPlayerModel;
 
 	KeyValues* m_kvBuyMenuConfig;

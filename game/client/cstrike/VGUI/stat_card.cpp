@@ -33,6 +33,7 @@ StatCard::StatCard(vgui::Panel *parent, const char *name) : BaseClass(parent, "C
 	m_pAvatar = new CAvatarImagePanel(this, "Avatar");
 	m_pAvatar->SetShouldScaleImage(true);
 	m_pAvatar->SetShouldDrawFriendIcon(false);
+	m_pAvatar->SetDefaultAvatar( scheme()->GetImage( CSTRIKE_DEFAULT_AVATAR, true ) );
 	m_pAvatar->SetSize(64,64);
 	
 	m_pName= new Label(this, "Name", "Name");
@@ -68,6 +69,8 @@ void StatCard::UpdateInfo()
 	float kills = personalLifetimeStats[CSSTAT_KILLS];
 	float deaths = personalLifetimeStats[CSSTAT_DEATHS];
 	wchar_t buf[64], numBuf[64];
+	ConVarRef cl_name( "name" );
+	m_pName->SetText( cl_name.GetString() );
 
 	if (deaths > 0)
 	{
@@ -88,19 +91,22 @@ void StatCard::UpdateInfo()
 		g_pVGuiLocalize->Find( "#GameUI_Stats_LastMatch_MVPS" ), 1, numBuf );		
 	m_pStars->SetText( buf );
 
-	if (steamapicontext)
+	// Get player name from engine (works for Steam and non-Steam)
+	C_BasePlayer *pLocalPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( pLocalPlayer )
 	{
-		ISteamFriends* friends = steamapicontext->SteamFriends();
-		if (friends)
+		player_info_t pi;
+		if ( engine->GetPlayerInfo( pLocalPlayer->entindex(), &pi ) )
 		{
-			m_pName->SetText(friends->GetPersonaName());
+			g_pVGuiLocalize->ConvertANSIToUnicode( pi.name, buf, sizeof(buf) );
+			m_pName->SetText( buf );
 		}
 	}
 
-	// Display the player avatar
-	if (m_pAvatar && steamapicontext && steamapicontext->SteamUser())
+	// Display the player avatar (uses custom avatar system if available)
+	if (m_pAvatar && pLocalPlayer)
 	{
-		m_pAvatar->SetPlayer( steamapicontext->SteamUser()->GetSteamID(), k_EAvatarSize64x64 );	
+		m_pAvatar->SetPlayer( pLocalPlayer, k_EAvatarSize64x64 );
 		m_pAvatar->SetVisible( true );
 	}
 }

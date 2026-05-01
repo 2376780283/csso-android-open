@@ -13,6 +13,8 @@
 
 #include <vgui_controls/PropertyPage.h>
 #include <vgui_controls/Label.h>
+#include <vgui_controls/ScrollBar.h>
+#include <vgui_controls/Panel.h>
 
 class CLabeledCommandComboBox;
 
@@ -38,8 +40,12 @@ public:
 
 	void UpdateViewmodelSliderLabels();
 
+	// Called when layout needs to be performed
+	virtual void PerformLayout() override;
+
 protected:
 	MESSAGE_FUNC_PARAMS( OnSliderMoved, "SliderMoved", data );
+	MESSAGE_FUNC_PARAMS( OnScrollBarSliderMoved, "ScrollBarSliderMoved", data );
 
 	// Called when page is loaded.  Data should be reloaded from document into controls.
 	virtual void OnResetData();
@@ -47,6 +53,22 @@ protected:
 	virtual void OnApplyChanges();
 
 private:
+	// Section Labels
+	vgui::Label*				m_pGeneralLabel;
+	vgui::Label*				m_pViewmodelLabel;
+	vgui::Label*				m_pMovementLabel;
+	vgui::Label*				m_pPresetLabel;
+	vgui::Label*				m_pOffsetXLabel;
+	vgui::Label*				m_pOffsetYLabel;
+	vgui::Label*				m_pOffsetZLabel;
+	vgui::Label*				m_pFOVLabel;
+	vgui::Label*				m_pFOVDescription;
+	vgui::Label*				m_pRecoilLabel;
+	vgui::Label*				m_pRecoilDescription;
+	vgui::Label*				m_pViewbobLabel;
+	vgui::Label*				m_pWeaponPosLabel;
+	vgui::Panel*				m_pDivider1;
+
 	CCvarToggleCheckButton*		m_pCloseOnBuy;
 	CCvarToggleCheckButton*		m_pUseOpensBuyMenu;
 	CCvarToggleCheckButton*		m_pAddBotPrefix;
@@ -66,6 +88,10 @@ private:
 	vgui::Label*				m_pViewmodelRecoilLabel;
 	CLabeledCommandComboBox*	m_pViewbobStyle;
 	CLabeledCommandComboBox*	m_pWeaponPos;
+
+	// Scroll panel controls
+	vgui::ScrollBar*			m_pVScrollBar;
+	vgui::Panel*				m_pScrollContainer;
 };
 
 #endif // MODOPTIONSSUBGAMEPLAY_H

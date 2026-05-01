@@ -421,6 +421,11 @@ void CShaderAPIDx10::GetCurrentViewport( int& nX, int& nY, int& nWidth, int& nHe
 	nHeight = viewport.m_nHeight;
 }
 
+
+inline void CShaderAPIDx10::SetScreenSizeForVPOS( int pshReg /* = 32 */ )
+{
+}
+
 	
 //-----------------------------------------------------------------------------
 // Viewport-related methods

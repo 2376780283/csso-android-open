@@ -17,6 +17,7 @@
 #include "shaderapi/ishaderdynamic.h"
 #include "shaderapi/IShaderDevice.h"
 #include "materialsystem/deformations.h"
+#include "shaderlib/shadercombosemantics.h"
 
 
 //-----------------------------------------------------------------------------
@@ -626,6 +627,8 @@ public:
 	virtual void TexLodBias( float bias ) = 0;
 	
 	virtual void CopyTextureToTexture( ShaderAPITextureHandle_t srcTex, ShaderAPITextureHandle_t dstTex ) = 0;
+
+	virtual void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics ) = 0;
 	
 };
 

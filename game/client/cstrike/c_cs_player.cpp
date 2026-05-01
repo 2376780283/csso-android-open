@@ -36,8 +36,10 @@
 #include "fx_cs_blood.h"
 #include "c_cs_playerresource.h"
 #include "c_team.h"
+#include "flashlighteffect.h"
 #include "c_cs_hostage.h"
 #include "prediction.h"
+#include "voice_status.h"
 #include "weapon_basecsgloves.h"
 
 #include "weapon_selection.h"
@@ -48,6 +50,7 @@
 #include <engine/IEngineSound.h>
 #include <inetchannel.h>
 #include <netmessages.h>
+#include "cs_skin_database.h"
 
 #include "eventlist.h"
 #include "npcevent.h"
@@ -136,23 +139,24 @@ public:
 	const char *m_pWeaponClassName;	// The addon uses the w_ model from this weapon.
 	const char *m_pModelName;		//If this is present, will use this model instead of looking up the weapon
 	const char *m_pHolsterName;
+    const char *m_pPaintKit;
 };
 
 
 // These must follow the ADDON_ ordering.
 CAddonInfo g_AddonInfo[] =
 {
-	{ "grenade0",	"weapon_flashbang",		0, 0 },
-	{ "grenade1",	"weapon_flashbang",		0, 0 },
-	{ "grenade2",	"weapon_hegrenade",		0, 0 },
-	{ "grenade3",	"weapon_smokegrenade",	0, 0 },
-	{ "c4",			"weapon_c4",			0, 0 },
-	{ "defusekit",	0,						"models/weapons/w_defuser.mdl", 0 },
-	{ "primary",	0,						0, 0 },	// Primary addon model is looked up based on m_iPrimaryAddon
-	{ "pistol",		0,						0, 0 },	// Pistol addon model is looked up based on m_iSecondaryAddon
-	{ "eholster",	0,						"models/weapons/w_eq_eholster_elite.mdl", "models/weapons/w_eq_eholster.mdl" },
-	{ "knife",		0,						0, 0 },	// Knife addon model is looked up based on m_iKnifeAddon
-	{ "grenade4",	"weapon_decoy",			0, 0 },
+	{ "grenade0",	"weapon_flashbang",		0, 0, 0 },
+	{ "grenade1",	"weapon_flashbang",		0, 0, 0 },
+	{ "grenade2",	"weapon_hegrenade",		0, 0, 0 },
+	{ "grenade3",	"weapon_smokegrenade",	0, 0, 0 },
+	{ "c4",			"weapon_c4",			0, 0, 0 },
+	{ "defusekit",	0,						"models/weapons/w_defuser.mdl", 0, 0 },
+	{ "primary",	0,						0, 0, 0 },	// Primary addon model is looked up based on m_iPrimaryAddon
+	{ "pistol",		0,						0, 0, 0 },	// Pistol addon model is looked up based on m_iSecondaryAddon
+	{ "eholster",	0,						"models/weapons/w_eq_eholster_elite.mdl", "models/weapons/w_eq_eholster.mdl", 0 },
+	{ "knife",		0,						0, 0, 0 },	// Knife addon model is looked up based on m_iKnifeAddon
+	{ "grenade4",	"weapon_decoy",			0, 0, 0 },
 };
 
 CUtlVector<EHANDLE> g_SmokeGrenadeHandles;
@@ -810,6 +814,10 @@ void C_CSRagdoll::CreateGlovesModel()
 		nGlovesID = pPlayer->m_iLoadoutSlotGlovesCT;
 	else if ( pPlayer->GetTeamNumber() == TEAM_TERRORIST )
 		nGlovesID = pPlayer->m_iLoadoutSlotGlovesT;
+        
+    int nGlovesPaintKitID = 0;
+    if (pPlayer)
+        nGlovesPaintKitID = pPlayer->m_iGlovePaintKitID;
 
 	const char *szGlovesViewModel = NULL;
 	if ( nGlovesID > 0 )
@@ -823,7 +831,25 @@ void C_CSRagdoll::CreateGlovesModel()
 		{
 			m_pGloves->SetGloveID( nGlovesID );
 			m_pGloves->Equip( this );
-
+            
+            if ( nGlovesPaintKitID > 0 )
+			{
+				const SkinDefinition_t* pSkinDef = g_SkinDatabase.FindSkinByPaintKit( nGlovesPaintKitID );
+				if ( pSkinDef )
+				{
+					FOR_EACH_VEC(pSkinDef->materials, i)
+					{
+						const SkinDefinition_t::MaterialData_t& matData = pSkinDef->materials[i];
+						IMaterial* pMat = g_SkinDatabase.GetSkinMaterial( nGlovesPaintKitID, matData.iMaterialIndex );
+						
+						if ( pMat )
+						{
+							m_pGloves->SetMaterialOverride( pMat, matData.iMaterialIndex );
+					    }
+					}
+				}
+			}
+            
 			int nSkin = 0;
 			if ( pPlayer->m_pViewmodelArmConfig )
 				nSkin = pPlayer->m_pViewmodelArmConfig->iSkintoneIndex;
@@ -1044,8 +1070,11 @@ IMPLEMENT_CLIENTCLASS_DT( C_CSPlayer, DT_CSPlayer, CCSPlayer )
 	RecvPropInt( RECVINFO( m_iThrowGrenadeCounter ) ),
 	RecvPropInt( RECVINFO( m_iAddonBits ) ),
 	RecvPropInt( RECVINFO( m_iPrimaryAddon ) ),
+    RecvPropInt( RECVINFO( m_iPrimaryAddonPaintKit ) ),
 	RecvPropInt( RECVINFO( m_iSecondaryAddon ) ),
+    RecvPropInt( RECVINFO( m_iSecondaryAddonPaintKit ) ),
 	RecvPropInt( RECVINFO( m_iKnifeAddon ) ),
+    RecvPropInt( RECVINFO( m_iKnifeAddonPaintKit ) ),
 	RecvPropInt( RECVINFO( m_iPlayerState ) ),
 	RecvPropInt( RECVINFO( m_iAccount ) ),
 	RecvPropBool( RECVINFO( m_bInBombZone ) ),
@@ -1106,10 +1135,13 @@ IMPLEMENT_CLIENTCLASS_DT( C_CSPlayer, DT_CSPlayer, CCSPlayer )
 	RecvPropInt( RECVINFO( m_iLoadoutSlotGlovesCT ) ),
 	RecvPropInt( RECVINFO( m_iLoadoutSlotGlovesT ) ),
 	RecvPropInt( RECVINFO( m_iLoadoutSlotKnifeWeaponCT ) ),
+    RecvPropInt( RECVINFO( m_iLoadoutSlotKnifeWeaponSkinCT ) ),
 	RecvPropInt( RECVINFO( m_iLoadoutSlotKnifeWeaponT ) ),
+    RecvPropInt( RECVINFO( m_iLoadoutSlotKnifeWeaponSkinT ) ),
 	RecvPropInt( RECVINFO( m_iLoadoutSlotAgentCT ) ),
 	RecvPropInt( RECVINFO( m_iLoadoutSlotAgentT ) ),
 	RecvPropEHandle( RECVINFO( m_hLoadoutGloves ) ),
+    RecvPropInt( RECVINFO( m_iGlovePaintKitID ) ),
 
 END_RECV_TABLE()
 
@@ -1163,6 +1195,8 @@ C_CSPlayer::C_CSPlayer() :
 	m_flFreezeFrameTilt = 0;
 	m_bFreezeFrameCloseOnKiller = false;
 	m_nFreezeFrameShiftSideDist = 0;
+    
+    m_bFreezeCamFlashlightActive = false;
 
 	m_bOldIsScoped = false;
 
@@ -1254,8 +1288,15 @@ C_CSPlayer::~C_CSPlayer()
 			pViewModel->RemoveViewmodelStatTrak();
 		}
 	}
+    m_freezeCamSpotLightTexture.Shutdown();
 }
 
+void C_CSPlayer::UpdateOnRemove( void )
+{
+	CancelFreezeCamFlashlightEffect();
+
+	BaseClass::UpdateOnRemove();
+}
 
 class CTraceFilterOmitPlayers : public CTraceFilterSimple
 {
@@ -1897,6 +1938,45 @@ int C_CSPlayer::GetTargetedWeapon( void ) const
 	return m_iTargetedWeaponEntIndex;
 }
 
+int C_CSPlayer::GetAddonPaintKit( int addonIndex ) const
+{
+    int addonType = ( 1 << addonIndex );
+
+    switch ( addonType )
+    {
+        case ADDON_PRIMARY:
+            return m_iPrimaryAddonPaintKit.Get();
+
+        case ADDON_PISTOL:
+        case ADDON_PISTOL2:
+            return m_iSecondaryAddonPaintKit.Get();
+
+        case ADDON_KNIFE:
+            return m_iKnifeAddonPaintKit.Get();
+    }
+
+    return 0;
+}
+
+Vector C_CSPlayer::GetParticleHeadLabelOffset( void )
+{
+	Vector vecVoice;
+	int iBIndex = LookupBone( "ValveBiped.Bip01_Head" );
+	if ( iBIndex >= 0 )
+	{
+		Vector vecBone;
+		QAngle angBone;
+		GetBonePosition( iBIndex, vecBone, angBone );
+
+		vecVoice = (vecBone - GetAbsOrigin()) + Vector( 0, 0, 12 );
+	}
+	else
+	{
+		vecVoice = (EyePosition() - GetAbsOrigin()) + Vector( 0.0f, 0.0f, GetClientVoiceMgr()->GetHeadLabelOffset() );
+	}
+
+	return vecVoice;
+}
 
 class C_PlayerAddonModel : public C_BreakableProp
 {
@@ -1959,7 +2039,7 @@ void C_CSPlayer::CreateAddonModel( int i )
 	{
 		CCSWeaponInfo *weaponInfo;
 		if ( addonType == ADDON_PRIMARY )
-			weaponInfo = GetWeaponInfo( (CSWeaponID) m_iPrimaryAddon.Get() );
+			weaponInfo = GetWeaponInfo( (CSWeaponID) m_iPrimaryAddon.Get()  );
 		else if ( addonType == ADDON_PISTOL )
 			weaponInfo = GetWeaponInfo( (CSWeaponID) m_iSecondaryAddon.Get() );
 		else
@@ -2057,7 +2137,25 @@ void C_CSPlayer::CreateAddonModel( int i )
 	pAddon->m_hEnt = pEnt;
 	pAddon->m_iAddon = i;
 	pAddon->m_iAttachmentPoint = iAttachment;
-	pEnt->SetParent( this, pAddon->m_iAttachmentPoint );
+	pEnt->SetParent( this, pAddon->m_iAttachmentPoint ); 
+    int iPaintKit = GetAddonPaintKit( i );
+    if ( iPaintKit > 0 )
+	{
+		const SkinDefinition_t* pSkinDef = g_SkinDatabase.FindSkinByPaintKit( iPaintKit );
+		if ( pSkinDef )
+		{
+			FOR_EACH_VEC(pSkinDef->materials, i)
+			{
+				const SkinDefinition_t::MaterialData_t& matData = pSkinDef->materials[i];
+				IMaterial* pMat = g_SkinDatabase.GetSkinMaterial( iPaintKit, matData.iMaterialIndex );
+						
+				if ( pMat )
+                {
+					pEnt->SetMaterialOverride( pMat, matData.iMaterialIndex );
+			    }
+			}
+        }
+	}
 
 	int iHolsterAttachment = pEnt->LookupAttachment( "weapon_holster_center" );
 	if ( iHolsterAttachment > 0 )
@@ -2214,6 +2312,7 @@ void C_CSPlayer::UpdateAddonModels( bool bForce )
 		if ( !( iCurAddonBits & addonBit ) || (rebuildPistol2Addon && addonBit == ADDON_PISTOL2 ) || ( rebuildPrimaryAddon && addonBit == ADDON_PRIMARY ) )
 		{
 			if ( pModel->m_hEnt.Get() )
+                pModel->m_hEnt->ClearMaterialOverride();
 				pModel->m_hEnt->Release();
 
 			m_AddonModels.Remove( i );
@@ -2257,6 +2356,7 @@ void C_CSPlayer::RemoveAddonModels()
 
 		if ( pModel->m_hEnt.Get() )
 		{
+            pModel->m_hEnt->ClearMaterialOverride();
 			pModel->m_hEnt->Release();
 		}
 
@@ -2383,6 +2483,8 @@ void C_CSPlayer::FireGameEvent( IGameEvent *event )
 			m_nLastKillerHitsGiven = 0;
 
 			UpdateAddonModels( true );
+            
+            CancelFreezeCamFlashlightEffect();
 
 			m_flLastSpawnTimeIndex = gpGlobals->curtime;
 
@@ -2630,7 +2732,7 @@ void C_CSPlayer::ClientThink()
 	CheckMusicDuration();
 
 	// velocity music handling
-	if( GetCurrentMusic() == CSMUSIC_START && GetMusicStartRoundElapsed() > 0.5 )
+	if( (GetCurrentMusic() == CSMUSIC_START || GetCurrentMusic() == CSMUSIC_NONE) && gpGlobals->curtime >= CSGameRules()->GetRoundStartTime() && GetMusicStartRoundElapsed() > 0.5 )
 	{
 		Vector vAbsVelocity = GetAbsVelocity();
 		float flAbsVelocity = vAbsVelocity.Length2D();
@@ -2714,6 +2816,7 @@ void C_CSPlayer::ClientThink()
 		else
 		{
 			s_bPlayingFreezeCamSound = false;
+            CancelFreezeCamFlashlightEffect();
 		}
 	}
 
@@ -2857,6 +2960,7 @@ void C_CSPlayer::ClientThink()
 		else
 		{
 			m_bPlayingFreezeCamSound = false;
+            CancelFreezeCamFlashlightEffect();
 		}
 	}
 }
@@ -2869,6 +2973,8 @@ void C_CSPlayer::OnDataChanged( DataUpdateType_t type )
 	if ( type == DATA_UPDATE_CREATED )
 	{
 		SetNextClientThink( CLIENT_THINK_ALWAYS );
+        
+        m_freezeCamSpotLightTexture.Init( "effects/flashlight_freezecam", TEXTURE_GROUP_OTHER, true );
 	}
 
 	if ( m_bPlayingHostageCarrySound == false && m_hCarriedHostage )
@@ -3463,7 +3569,7 @@ bool C_CSPlayer::ShouldDraw( void )
 	if( IsLocalPlayer() )
 	{
 		if ( IsRagdoll() )
-			return true;
+			return false;
 	}
 
 	C_BasePlayer *pLocalPlayer = C_BasePlayer::GetLocalPlayer();
@@ -3471,7 +3577,7 @@ bool C_CSPlayer::ShouldDraw( void )
 	// keep drawing players we're observing with the interpolating spectator camera
 	if ( pLocalPlayer && pLocalPlayer->GetObserverInterpState() == OBSERVER_INTERP_TRAVELING )
 	{
-		return true;
+		return false;
 	}
 
 	// don't draw players we're observing in first-person
@@ -3479,6 +3585,10 @@ bool C_CSPlayer::ShouldDraw( void )
 	{
 		return false;
 	}
+	if ( IsLocalPlayer() && IsAlive() && !::input->CAM_IsThirdPerson() )
+    {
+        return false; 
+    }
 
 	return BaseClass::ShouldDraw();
 }
@@ -3764,21 +3874,90 @@ void C_CSPlayer::DoExtraBoneProcessing( CStudioHdr *pStudioHdr, Vector pos[], Qu
 	
 	if ( !IsVisible() || (IsLocalPlayer() && !C_BasePlayer::ShouldDrawLocalPlayer()) || !ShouldDraw() )
 		return;
+
+	mstudioikchain_t *pLeftFootChain = NULL;
+	mstudioikchain_t *pRightFootChain = NULL;
 	mstudioikchain_t *pLeftArmChain = NULL;
 
+	int nLeftFootBoneIndex = LookupBone( "ankle_L" );
+	int nRightFootBoneIndex = LookupBone( "ankle_R" );
 	int nLeftHandBoneIndex = LookupBone( "hand_L" );
 
-	Assert( nLeftHandBoneIndex != -1 );
+	Assert( nLeftFootBoneIndex != -1 && nRightFootBoneIndex != -1 && nLeftHandBoneIndex != -1 );
 
 	for( int i = 0; i < pStudioHdr->numikchains(); i++ )
 	{
 		mstudioikchain_t *pchain = pStudioHdr->pIKChain( i );
-		if ( nLeftHandBoneIndex == pchain->pLink( 2 )->bone )
+		if ( nLeftFootBoneIndex == pchain->pLink( 2 )->bone )
+		{
+			pLeftFootChain = pchain;
+		}
+		else if ( nRightFootBoneIndex == pchain->pLink( 2 )->bone )
+		{
+			pRightFootChain = pchain;
+		}
+		else if ( nLeftHandBoneIndex == pchain->pLink( 2 )->bone )
 		{
 			pLeftArmChain = pchain;
+		}
+
+		if ( pLeftFootChain && pRightFootChain && pLeftArmChain )
 			break;
+	}
+	
+	Assert( pLeftFootChain && pRightFootChain );
+	
+	Vector vecAnimatedLeftFootPos = boneToWorld[nLeftFootBoneIndex].GetOrigin();
+	Vector vecAnimatedRightFootPos = boneToWorld[nRightFootBoneIndex].GetOrigin();
+
+	m_PlayerAnimStateCSGO->DoProceduralFootPlant( boneToWorld, pLeftFootChain, pRightFootChain, pos );
+	
+
+	// hack - keep the toes above the ground
+	if ( (GetFlags() & FL_ONGROUND) && (GetMoveType() == MOVETYPE_WALK) )
+	{
+		float flZMaxToe = GetAbsOrigin().z + 0.75f;
+
+		int nLeftToeBoneIndex = LookupBone( "ball_L" );
+		int nRightToeBoneIndex = LookupBone( "ball_R" );
+
+		if ( nLeftToeBoneIndex > 0 )
+		{
+			// need to build an extended toe position
+			Vector vecToeLeft = boneToWorld[nLeftFootBoneIndex].TransformVector( pos[nLeftToeBoneIndex] );
+			Vector vecForward;
+			MatrixGetColumn( boneToWorld[nLeftToeBoneIndex], 0, vecForward );
+			vecToeLeft += vecForward * cl_player_toe_length;
+			if ( vecToeLeft.z < flZMaxToe )
+			{
+				boneToWorld[nLeftFootBoneIndex][2][3] += (flZMaxToe - vecToeLeft.z);
+			}
+		}
+
+		if ( nRightToeBoneIndex > 0 )
+		{
+			Vector vecToeRight = boneToWorld[nRightFootBoneIndex].TransformVector( pos[nRightToeBoneIndex] );
+			Vector vecForward;
+			MatrixGetColumn( boneToWorld[nRightToeBoneIndex], 0, vecForward );
+			vecToeRight -= vecForward * cl_player_toe_length; // right toe bone is backwards...
+			if ( vecToeRight.z < flZMaxToe )
+			{
+				boneToWorld[nRightFootBoneIndex][2][3] += (flZMaxToe - vecToeRight.z);
+			}
 		}
 	}
+    
+    //Why install Origin twice?
+
+	Vector vecLeftFootPos = boneToWorld[nLeftFootBoneIndex].GetOrigin();
+	Vector vecRightFootPos = boneToWorld[nRightFootBoneIndex].GetOrigin();
+
+	/*boneToWorld[nLeftFootBoneIndex].SetOrigin( vecAnimatedLeftFootPos );
+	boneToWorld[nRightFootBoneIndex].SetOrigin( vecAnimatedRightFootPos ); */
+
+	Studio_SolveIK( pLeftFootChain->pLink( 0 )->bone, pLeftFootChain->pLink( 1 )->bone, nLeftFootBoneIndex, vecLeftFootPos, boneToWorld );
+	Studio_SolveIK( pRightFootChain->pLink( 0 )->bone, pRightFootChain->pLink( 1 )->bone, nRightFootBoneIndex, vecRightFootPos, boneToWorld );
+
 
 	int nLeftHandIkBoneDriver = LookupBone( "lh_ik_driver" );
 	if ( nLeftHandIkBoneDriver > 0 && pos[nLeftHandIkBoneDriver].x > 0 )
@@ -3846,23 +4025,14 @@ void C_CSPlayer::DoExtraBoneProcessing( CStudioHdr *pStudioHdr, Vector pos[], Qu
 								Vector vecShoulderToHand = (vecTarget - boneToWorld[pLeftArmChain->pLink( 0 )->bone].GetOrigin()).Normalized() * CS_ARM_HYPEREXTENSION_LIM;
 								vecTarget = vecShoulderToHand + boneToWorld[pLeftArmChain->pLink( 0 )->bone].GetOrigin();							
 							}
-
-							//debugoverlay->AddBoxOverlay( vecTarget, Vector(-0.1,-0.1,-0.1), Vector(0.1,0.1,0.1), QAngle(0,0,0), 0,255,0,255, 0 );
-							//debugoverlay->AddLineOverlay( boneToWorld[pLeftArmChain->pLink( 0 )->bone].GetOrigin(), boneToWorld[pLeftArmChain->pLink( 1 )->bone].GetOrigin(), 80,80,80,true,0);
-							//debugoverlay->AddLineOverlay( boneToWorld[pLeftArmChain->pLink( 1 )->bone].GetOrigin(), boneToWorld[pLeftArmChain->pLink( 2 )->bone].GetOrigin(), 80,80,80,true,0);
-							//debugoverlay->AddLineOverlay( boneToWorld[pLeftArmChain->pLink( 0 )->bone].GetOrigin(), boneToWorld[pLeftArmChain->pLink( 2 )->bone].GetOrigin(), 80,80,80,true,0);
-
 							Studio_SolveIK( pLeftArmChain->pLink( 0 )->bone, pLeftArmChain->pLink( 1 )->bone, pLeftArmChain->pLink( 2 )->bone, vecTarget, boneToWorld );
-
-							//debugoverlay->AddLineOverlay( boneToWorld[pLeftArmChain->pLink( 0 )->bone].GetOrigin(), boneToWorld[pLeftArmChain->pLink( 1 )->bone].GetOrigin(), 255,0,0,true,0);
-							//debugoverlay->AddLineOverlay( boneToWorld[pLeftArmChain->pLink( 1 )->bone].GetOrigin(), boneToWorld[pLeftArmChain->pLink( 2 )->bone].GetOrigin(), 255,0,0,true,0);
-							//debugoverlay->AddLineOverlay( boneToWorld[pLeftArmChain->pLink( 0 )->bone].GetOrigin(), boneToWorld[pLeftArmChain->pLink( 2 )->bone].GetOrigin(), 0,0,255,true,0);
 						}
 					}
 				}
 			}
 		}
 	}
+
 }
 
 bool FindWeaponAttachmentBone( C_BaseCombatWeapon *pWeapon, int &iWeaponBone )
@@ -3948,7 +4118,6 @@ void C_CSPlayer::BuildTransformations( CStudioHdr *pHdr, Vector *pos, Quaternion
 {
 	// First, setup our model's transformations like normal.
 	BaseClass::BuildTransformations( pHdr, pos, q, cameraTransform, boneMask, boneComputed );
-
 	if ( !m_bUseNewAnimstate || !m_PlayerAnimStateCSGO )
 		return;
 
@@ -4182,9 +4351,14 @@ void C_CSPlayer::DropPhysicsMag( const char *options )
 
 	if ( !pEntity->Initialize() )
 	{
+        pEntity->ClearMaterialOverride();
 		pEntity->Release();
 		return;
 	}
+    
+	int iPaintKit = pWeapon->GetPaintKit();
+    IMaterial* pMaterial = g_SkinDatabase.GetSkinMaterial( iPaintKit );
+    pEntity->SetMaterialOverride( pMaterial, 0 );
 
 	// fade out after set time
 	pEntity->StartFadeOut( sv_magazine_drop_time );
@@ -4496,6 +4670,9 @@ float C_CSPlayer::GetFOV( void )
 //-----------------------------------------------------------------------------
 void C_CSPlayer::CalcObserverView( Vector& eyeOrigin, QAngle& eyeAngles, float& fov )
 {
+    
+    CancelFreezeCamFlashlightEffect();
+    
 	/**
 	 * TODO: Fix this!
 	// CS:S standing eyeheight is above the collision volume, so we need to pull it
@@ -5028,6 +5205,16 @@ void C_CSPlayer::CalcFreezeCamView( Vector& eyeOrigin, QAngle& eyeAngles, float&
 
 	float fCurTime = gpGlobals->curtime - m_flFreezeFrameStartTime;
 	float fTravelTime = !m_bFreezeFrameCloseOnKiller ? spec_freeze_traveltime.GetFloat() : spec_freeze_traveltime_long.GetFloat();
+    
+    // cancel the light shortly after the freeze frame was taken
+	if ( m_bSentFreezeFrame && fCurTime >= (fTravelTime + 0.25f ) )
+	{
+		CancelFreezeCamFlashlightEffect();
+	}
+	else
+	{
+		UpdateFreezeCamFlashlightEffect( pTarget, fInterpolant );
+	}
 
 	// [jason] check that our target position does not fall within the render extents of the target we're looking at;
 	//	this can happen if our killer is in a tight spot and the camera is trying to avoid clipping geometry
@@ -5086,6 +5273,110 @@ void C_CSPlayer::CalcFreezeCamView( Vector& eyeOrigin, QAngle& eyeAngles, float&
 
 		m_bSentFreezeFrame = true;
 		view->FreezeFrame( spec_freeze_time.GetFloat() );
+	}
+}
+
+void C_CSPlayer::UpdateFreezeCamFlashlightEffect( C_BaseEntity *pTarget, float flAmount )
+{
+	if ( !pTarget )
+	{
+		CancelFreezeCamFlashlightEffect();
+		return;
+	}
+
+	Vector brightness( spec_freeze_cinematiclight_r.GetFloat(), spec_freeze_cinematiclight_g.GetFloat(), spec_freeze_cinematiclight_b.GetFloat() );
+	Vector dimWhite( 0.3f, 0.3f, 0.3f );
+
+	if ( !m_bFreezeCamFlashlightActive )
+	{
+		//m_fFlashlightEffectStartTonemapScale = GetCurrentTonemapScale();
+		m_bFreezeCamFlashlightActive = true;
+		//m_fFlashlightEffectStartTime = gpGlobals->curtime;
+		//m_flashLightFadeTimer.Start( 3.0f );
+	}
+
+	Vector vecFlashlightOrigin;
+	Vector vecFlashlightForward( 0.0f, 0.0f, -1.0f );
+	Vector vecFlashlightRight( 1.0f, 0.0f, 0.0f );
+	Vector vecFlashlightUp( 0.0f, 1.0f, 0.0f );
+	float fFOV = 0.0f;
+
+	float invScale = 1.0f;
+	//if ( m_fFlashlightEffectStartTonemapScale != 0.0f )
+	//{
+	//	invScale = 1.0f / m_fFlashlightEffectStartTonemapScale;
+	//}
+	brightness = (brightness * invScale * spec_freeze_cinematiclight_scale.GetFloat() ) * flAmount;
+
+	//if ( isDying )
+	{
+		Vector targetOrig = pTarget->GetRenderOrigin();
+		targetOrig.z += 32;
+		Vector vToTarget = targetOrig - EyePosition();
+		VectorNormalize( vToTarget );
+		Vector forward, right, up;
+		QAngle angTemp;
+        VectorAngles( vToTarget, angTemp );
+		AngleVectors (angTemp, &forward, &right, &up );
+
+		if ( m_nFreezeFrameShiftSideDist > 0 )
+			vecFlashlightOrigin = targetOrig + ( right * 80 );
+		else
+			vecFlashlightOrigin = targetOrig - ( right * 80 );
+		vecFlashlightOrigin -= ( forward * 50 );
+		vecFlashlightOrigin.z += 100.f;
+
+		float flFOVExtra = 0;
+
+		trace_t trace;
+		UTIL_TraceLine( targetOrig, vecFlashlightOrigin, MASK_OPAQUE, pTarget, COLLISION_GROUP_DEBRIS, &trace );
+		if ( trace.fraction >= 0.8 )
+		{
+			vecFlashlightOrigin = trace.endpos;
+		}
+		else
+		{
+			// just go the other way
+			if ( m_nFreezeFrameShiftSideDist > 0 )
+				vecFlashlightOrigin = targetOrig - ( right * 60 );
+			else
+				vecFlashlightOrigin = targetOrig + ( right * 60 );
+			vecFlashlightOrigin -= ( forward * 40 );
+			vecFlashlightOrigin.z += 80.f;
+			UTIL_TraceLine( targetOrig, vecFlashlightOrigin, MASK_OPAQUE, pTarget, COLLISION_GROUP_DEBRIS, &trace );
+			vecFlashlightOrigin = trace.endpos;
+
+			flFOVExtra = (1 - trace.fraction ) * 20; 
+			targetOrig.z += flFOVExtra;
+		}
+        
+        Vector vToTarget2 = targetOrig - vecFlashlightOrigin;
+		VectorNormalize( vToTarget2 );
+		QAngle angTemp2;
+		VectorAngles( vToTarget2, angTemp2 );
+		AngleVectors (angTemp2, &vecFlashlightForward, &vecFlashlightRight, &vecFlashlightUp );
+
+		fFOV = 50.f + flFOVExtra;
+	}
+
+	MDLCACHE_CRITICAL_SECTION();
+	FlashlightEffectManager().EnableFlashlightOverride( true );
+	FlashlightEffectManager().UpdateFlashlightOverride( true, vecFlashlightOrigin, vecFlashlightForward, vecFlashlightRight,
+		vecFlashlightUp, fFOV, true, m_freezeCamSpotLightTexture, brightness );
+
+	// force tonemapping down
+	//if ( m_bOverrideTonemapping )
+	//{
+	//	SetOverrideTonemapScale( true, fTonemapScale );
+	//}
+}
+
+void C_CSPlayer::CancelFreezeCamFlashlightEffect()
+{
+	if( m_bFreezeCamFlashlightActive )
+	{
+		FlashlightEffectManager().EnableFlashlightOverride( false );
+		m_bFreezeCamFlashlightActive = false;
 	}
 }
 
@@ -5164,4 +5455,3 @@ void C_CSPlayer::CalcDeathCamView( Vector& eyeOrigin, QAngle& eyeAngles, float& 
 //=============================================================================
 // HPE_END
 //=============================================================================
-

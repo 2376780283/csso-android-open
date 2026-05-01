@@ -22,6 +22,11 @@
 #endif
 #include <stdio.h>
 #include <sys/stat.h>
+#include <thread>
+#include <mutex>
+#include <vector>
+#include <queue>
+#include <atomic>
 #include "tier1/strtools.h"
 #include "tier1/utlbuffer.h"
 #include "filesystem_init.h"
@@ -35,6 +40,19 @@
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include <tier0/memdbgon.h>
+
+namespace FilesystemThreading
+{
+	std::mutex g_PathMutex;
+	std::atomic<int> g_NumThreads{ 0 };
+	
+	struct PathAddTask
+	{
+		const char *pathID;
+		const char *path;
+		bool bLowViolence;
+	};
+}
 
 #if !defined( _X360 )
 #define GAMEINFO_FILENAME			"gameinfo.txt"
@@ -539,6 +557,21 @@ static int SortStricmp( char * const * sz1, char * const * sz2 )
 	return V_stricmp( *sz1, *sz2 );
 }
 
+// Multi-threaded path mounting worker
+static void FileSystem_MountPathsWorker( CFSSearchPathsInit *initInfo, const char **pathIDs, int numPathIDs, 
+										  const char **locations, int numLocations, bool bLowViolence )
+{
+	for ( int idxLocation = 0; idxLocation < numLocations; ++idxLocation )
+	{
+		for ( int idxPathID = 0; idxPathID < numPathIDs; ++idxPathID )
+		{
+			FilesystemThreading::g_PathMutex.lock();
+			FileSystem_AddLoadedSearchPath( *initInfo, pathIDs[idxPathID], locations[idxLocation], bLowViolence );
+			FilesystemThreading::g_PathMutex.unlock();
+		}
+	}
+}
+
 FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 {
 	if ( !initInfo.m_pFileSystem || !initInfo.m_pDirectoryName )
@@ -722,12 +755,43 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 			Q_StripPrecedingAndTrailingWhitespace( vecPathIDs[ idxPathID ] );
 		}
 
-		// Mount them.
-		FOR_EACH_VEC( vecFullLocationPaths, idxLocation )
+		// Mount them using multiple threads for better performance
+		int numPaths = vecFullLocationPaths.Count();
+		int numPathIDs = vecPathIDs.Count();
+		
+		if ( numPaths > 0 && numPathIDs > 0 )
 		{
-			FOR_EACH_VEC( vecPathIDs, idxPathID )
+			int numThreads = std::min( (int)std::thread::hardware_concurrency(), numPaths );
+			numThreads = std::max( 1, numThreads );
+			
+			std::vector<std::thread> threads;
+			int pathsPerThread = ( numPaths + numThreads - 1 ) / numThreads;
+			
+			for ( int t = 0; t < numThreads; ++t )
 			{
-				FileSystem_AddLoadedSearchPath( initInfo, vecPathIDs[ idxPathID ], vecFullLocationPaths[ idxLocation ], bLowViolence );
+				int startPath = t * pathsPerThread;
+				int endPath = std::min( startPath + pathsPerThread, numPaths );
+				
+				if ( startPath < endPath )
+				{
+					threads.emplace_back( [&initInfo, &vecPathIDs, &vecFullLocationPaths, startPath, endPath, bLowViolence]()
+					{
+						for ( int idxLocation = startPath; idxLocation < endPath; ++idxLocation )
+						{
+							for ( int idxPathID = 0; idxPathID < vecPathIDs.Count(); ++idxPathID )
+							{
+								FilesystemThreading::g_PathMutex.lock();
+								FileSystem_AddLoadedSearchPath( initInfo, vecPathIDs[ idxPathID ], vecFullLocationPaths[ idxLocation ], bLowViolence );
+								FilesystemThreading::g_PathMutex.unlock();
+							}
+						}
+					});
+				}
+			}
+			
+			for ( auto &thread : threads )
+			{
+				thread.join();
 			}
 		}
 	}

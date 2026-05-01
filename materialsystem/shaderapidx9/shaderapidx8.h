@@ -112,6 +112,8 @@ public:
 	virtual void PrintfVA( char *fmt, va_list vargs ) = 0;
 	virtual void Printf( PRINTF_FORMAT_STRING const char *fmt, ... ) = 0;	
 	virtual float Knob( char *knobname, float *setvalue = NULL ) = 0;
+
+	virtual void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics ) = 0;
 };
 
 

@@ -57,6 +57,8 @@
 static ConVar cl_timeout( "cl_timeout", "30", FCVAR_ARCHIVE, "After this many seconds without receiving a packet from the server, the client will disconnect itself" );
 	   ConVar cl_logofile( "cl_logofile", "materials/decals/spraylogo.vtf", FCVAR_ARCHIVE, "Spraypoint logo decal." ); // TODO must be more generic
 static ConVar cl_soundfile( "cl_soundfile", "sound/player/jingle.wav", FCVAR_ARCHIVE, "Jingle sound file." );
+static ConVar cl_avatarfile( "cl_avatarfile", "materials/vgui/avatars/steam_defaultavatar.vtf", FCVAR_ARCHIVE, "Player avatar" );
+static ConVar cl_avatar( "cl_avatar", "", FCVAR_ARCHIVE, "Custom avatar VTF file path." );
 static ConVar cl_allowdownload ( "cl_allowdownload", "1", FCVAR_ARCHIVE, "Client downloads customization files" );
 static ConVar cl_downloadfilter( "cl_downloadfilter", "all", FCVAR_ARCHIVE, "Determines which files can be downloaded from the server (all, none, nosounds, mapsonly)" );
 
@@ -1222,11 +1224,10 @@ void CClientState::CheckOwnCustomFiles()
 	if ( m_nMaxClients == 1 )
 		return;	// not in singleplayer
 
-	if ( IsPC() )
-	{
 		AddCustomFile( 0, cl_logofile.GetString() );
 		AddCustomFile( 1, cl_soundfile.GetString() );
-	}
+    	AddCustomFile( 2, cl_avatarfile.GetString() );
+    	AddCustomFile( 2, cl_avatar.GetString() );
 }
 
 //-----------------------------------------------------------------------------

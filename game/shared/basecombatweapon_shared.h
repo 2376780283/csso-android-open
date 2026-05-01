@@ -41,6 +41,10 @@ class CBaseCombatCharacter;
 class IPhysicsConstraint;
 class CUserCmd;
 
+#ifndef CLIENT_DLL
+extern ConVar cl_showfirstperson_legs;
+#endif
+
 // How many times to display altfire hud hints (per weapon)
 #define WEAPON_ALTFIRE_HUD_HINT_COUNT	1
 #define WEAPON_RELOAD_HUD_HINT_COUNT	1
@@ -211,9 +215,10 @@ public:
 
 	float * GetRenderClipPlane( void );
 	virtual int DrawModel( int flags );
+    void ApplyCustomMaterialsAndStickers();
 
 	virtual bool SetupBones( matrix3x4_t *pBoneToWorldOut, int nMaxBones, int boneMask, float currentTime );
-
+    
 	virtual bool IsFollowingEntity() { return true; } // weapon world models are ALWAYS carried by players
 
 #else
@@ -302,6 +307,8 @@ public:
 	virtual bool			ShouldDisplayReloadHUDHint();
 	virtual void			DisplayReloadHudHint();
 	virtual void			RescindReloadHudHint();
+    
+    virtual int GetPaintKit() const { return 0; };
 
 	// Weapon client handling
 	virtual void			SetViewModelIndex( int index = 0 );
@@ -674,6 +681,7 @@ public:
 	CNetworkVar( int, m_iViewModelIndex );
 	CNetworkVar( int, m_iWorldModelIndex );
 	CNetworkVar( int, m_iWorldDroppedModelIndex );
+    CNetworkVar( int, m_nFallbackPaintKit );
 
 	CNetworkVar( int, m_iNumEmptyAttacks );
 

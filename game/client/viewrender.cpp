@@ -776,24 +776,26 @@ CLIENTEFFECT_REGISTER_END()
 #endif
 
 CLIENTEFFECT_REGISTER_BEGIN( PrecachePostProcessingEffects )
-	CLIENTEFFECT_MATERIAL( "dev/blurfiltery_and_add_nohdr" )
-	CLIENTEFFECT_MATERIAL( "dev/blurfilterx" )
-	CLIENTEFFECT_MATERIAL( "dev/blurfilterx_nohdr" )
-	CLIENTEFFECT_MATERIAL( "dev/blurfiltery" )
-	CLIENTEFFECT_MATERIAL( "dev/blurfiltery_nohdr" )
-	CLIENTEFFECT_MATERIAL( "dev/blurfiltery_nohdr_clear" )
-	CLIENTEFFECT_MATERIAL( "dev/bloomadd" )
-	CLIENTEFFECT_MATERIAL( "dev/downsample" )
-	CLIENTEFFECT_MATERIAL( "dev/downsample_non_hdr" )
-	CLIENTEFFECT_MATERIAL( "dev/no_pixel_write" )
-	CLIENTEFFECT_MATERIAL( "dev/lumcompare" )
-	CLIENTEFFECT_MATERIAL( "dev/floattoscreen_combine" )
-	CLIENTEFFECT_MATERIAL( "dev/copyfullframefb_vanilla" )
-	CLIENTEFFECT_MATERIAL( "dev/copyfullframefb" )
-	CLIENTEFFECT_MATERIAL( "dev/engine_post" )
-	CLIENTEFFECT_MATERIAL( "dev/motion_blur" )
-	CLIENTEFFECT_MATERIAL( "dev/upscale" )
-	CLIENTEFFECT_MATERIAL( "dev/fade_blur" )
+	CLIENTEFFECT_MATERIAL ( "dev/blurfiltery_and_add_nohdr" )
+	CLIENTEFFECT_MATERIAL ( "dev/blurfilterx" )
+	CLIENTEFFECT_MATERIAL ( "dev/blurfilterx_nohdr" )
+	CLIENTEFFECT_MATERIAL ( "dev/blurfiltery" )
+	CLIENTEFFECT_MATERIAL ( "dev/blurfiltery_nohdr" )
+	CLIENTEFFECT_MATERIAL ( "dev/blurfiltery_nohdr_clear" )
+	CLIENTEFFECT_MATERIAL ( "dev/bloomadd" )
+	CLIENTEFFECT_MATERIAL ( "dev/clearalpha" )
+	CLIENTEFFECT_MATERIAL ( "dev/downsample" )
+	CLIENTEFFECT_MATERIAL ( "dev/downsample_non_hdr" )
+	CLIENTEFFECT_MATERIAL ( "dev/no_pixel_write" )
+	CLIENTEFFECT_MATERIAL ( "dev/lumcompare" )
+	CLIENTEFFECT_MATERIAL ( "dev/floattoscreen_combine" )
+	CLIENTEFFECT_MATERIAL ( "dev/copyfullframefb_vanilla" )
+	CLIENTEFFECT_MATERIAL ( "dev/copyfullframefb" )
+	CLIENTEFFECT_MATERIAL ( "dev/engine_post" )
+	CLIENTEFFECT_MATERIAL ( "dev/motion_blur" )
+	CLIENTEFFECT_MATERIAL ( "dev/depth_of_field" )
+	CLIENTEFFECT_MATERIAL ( "dev/upscale" )
+	CLIENTEFFECT_MATERIAL ( "dev/fade_blur" )
 
 #ifdef TF_CLIENT_DLL
 	CLIENTEFFECT_MATERIAL( "dev/pyro_blur_filter_y" )
@@ -1399,6 +1401,29 @@ void CViewRender::ViewDrawScene( bool bDrew3dSkybox, SkyboxVisibility_t nSkyboxV
 	IGameSystem::PostRenderAllSystems();
 
 	FinishCurrentView();
+	
+	// FIXME: Workaround to 3d skybox not depth-of-fielding properly. The real fix is for the 3d skybox dest alpha depth values
+	// to be biased. Currently all I do is clear alpha to 1 after the 3D skybox path. This avoids the skybox being unblurred.
+	if( IsDepthOfFieldEnabled() )
+	{
+		// draw a fullscreen quad setting destalpha to 1
+
+		IMaterial *pMat = materials->FindMaterial( "dev/clearalpha", TEXTURE_GROUP_OTHER, true );
+		if ( pMat != NULL )
+		{
+			int nWidth = 0;
+			int nHeight = 0;
+			int nDummy = 0;
+			CMatRenderContextPtr pRenderContext( materials );
+			pRenderContext->GetViewport( nDummy, nDummy, nWidth, nHeight );
+
+			pRenderContext->DrawScreenSpaceRectangle(
+				pMat,
+				0, 0, nWidth, nHeight,
+				0, 0, nWidth-1, nHeight-1,
+				nWidth, nHeight, NULL /*GetClientWorldEntity()->GetClientRenderable()*/ );
+		}
+	}
 
 	// Free shadow depth textures for use in future view
 	if ( r_flashlightdepthtexture.GetBool() )
@@ -2032,6 +2057,15 @@ void CViewRender::RenderView( const CViewSetup &viewRender, int nClearFlags, int
 		// Image-space motion blur
 		if ( !building_cubemaps.GetBool() && viewRender.m_bDoBloomAndToneMapping ) // We probably should use a different view. variable here
 		{
+			if ( IsDepthOfFieldEnabled() )
+			{
+				pRenderContext.GetFrom( materials );
+				{
+					PIXEVENT( pRenderContext, "DoDepthOfField()" );
+					DoDepthOfField( viewRender );
+				}
+				pRenderContext.SafeRelease();
+			}
 			if ( ( mat_motion_blur_enabled.GetInt() ) && ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 90 ) )
 			{
 				pRenderContext.GetFrom( materials );
@@ -2352,6 +2386,19 @@ void CViewRender::RenderView( const CViewSetup &viewRender, int nClearFlags, int
 	if ( IsPC() )
 	{
 		CDebugViewRender::GenerateOverdrawForTesting();
+	}
+	
+	// Render a fullscreen rect to wipe alpha.
+	// Software that is injecting into present chain
+	// is grabbing our buffer with alpha and is able to give
+	// away players positioning when players are in or behind
+	// smoke.
+	//
+	if ( IMaterial *pMaterialClearAlpha = materials->FindMaterial( "dev/clearalpha", TEXTURE_GROUP_OTHER, true ) )
+	{
+		pRenderContext = materials->GetRenderContext();
+		pRenderContext->DrawScreenSpaceQuad( pMaterialClearAlpha );
+		pRenderContext.SafeRelease();
 	}
 
 	render->PopView( GetFrustum() );

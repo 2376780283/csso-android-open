@@ -296,6 +296,7 @@ private:
 	int m_nRadarMapTextureID;	// texture id for radar version of current overview image
 	int m_nCircleBackgroundTextureID;
 	int m_nCircleOverlayTextureID;
+	int m_nCircleOutlineTextureID;
 	int m_nSquareOverlayTextureID;
 
 	int m_nCurrentRadarVerticalSection;

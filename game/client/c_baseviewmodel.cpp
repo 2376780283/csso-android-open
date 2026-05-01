@@ -18,6 +18,7 @@
 #include "tools/bonelist.h"
 #include <KeyValues.h>
 #include "hltvcamera.h"
+#include "weapon_basecsgloves.h"
 #ifdef TF_CLIENT_DLL
 	#include "tf_weaponbase.h"
 #endif
@@ -27,6 +28,8 @@
 	#include "cs_shareddefs.h"
 	#include "c_cs_player.h"
 	#include "cs_loadout.h"
+    #include "SkinProcessor.h"
+    #include "cs_skin_database.h"
 #endif
 
 #if defined( REPLAY_ENABLED )
@@ -417,6 +420,28 @@ int C_BaseViewModel::DrawModel( int flags )
 		
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	C_BaseCombatWeapon *pWeapon = GetOwningWeapon();
+    
+    ClearMaterialOverride();
+
+    if ( pWeapon )
+    {
+        int iPaintKit = pWeapon->GetPaintKit();
+			const SkinDefinition_t* pSkinDef = g_SkinDatabase.FindSkinByPaintKit( iPaintKit );
+			if ( pSkinDef )
+			{
+				FOR_EACH_VEC(pSkinDef->materials, i)
+				{
+					const SkinDefinition_t::MaterialData_t& matData = pSkinDef->materials[i];
+					IMaterial* pMat = g_SkinDatabase.GetSkinMaterial( iPaintKit, matData.iMaterialIndex );
+						
+					if ( pMat )
+					{
+						this->SetMaterialOverride( pMat, matData.iMaterialIndex );
+                    }
+				}
+			}
+    }
+    
 	int ret;
 	// If the local player's overriding the viewmodel rendering, let him do it
 	if ( pPlayer && pPlayer->IsOverridingViewmodel() )
@@ -461,7 +486,7 @@ int C_BaseViewModel::DrawModel( int flags )
 					m_vecViewmodelArmModels[i]->SetEFlags( EF_BONEMERGE );
 					m_vecViewmodelArmModels[i]->SetParent( this );
 				}
-
+                
 				m_vecViewmodelArmModels[i]->DrawModel( flags );
 			}
 		}
@@ -470,7 +495,7 @@ int C_BaseViewModel::DrawModel( int flags )
 			m_viewmodelStatTrakAddon->DrawModel( flags );
 		}
 	}
-
+    
 	return ret;
 }
 
@@ -673,22 +698,59 @@ void C_BaseViewModel::UpdateAllViewmodelAddons( void )
 		RemoveViewmodelArmModels();
 	
 	// add gloves and sleeves
-	if ( pPlayer->m_pViewmodelArmConfig != NULL && m_vecViewmodelArmModels.Count() == 0 )
-	{
-		if ( CSLoadout()->HasGlovesSet( pPlayer, pPlayer->GetTeamNumber() ) )
-		{
-			AddViewmodelArmModel( GetGlovesInfo( CSLoadout()->GetGlovesForPlayer( pPlayer, pPlayer->GetTeamNumber() ) )->szViewModel, pPlayer->m_pViewmodelArmConfig->iSkintoneIndex, pPlayer->m_pViewmodelArmConfig->bHideBareArms );
-			if ( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModelGloveOverride[0] != NULL )
-				AddViewmodelArmModel( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModelGloveOverride );
-			else
-				AddViewmodelArmModel( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModel );
-		}
-		else
-		{
-			AddViewmodelArmModel( pPlayer->m_pViewmodelArmConfig->szAssociatedGloveModel, pPlayer->m_pViewmodelArmConfig->iSkintoneIndex, pPlayer->m_pViewmodelArmConfig->bHideBareArms );
-			AddViewmodelArmModel( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModel );
-		}
-	}
+	if ( m_vecViewmodelArmModels.Count() == 0 )
+{
+    if ( CSLoadout()->HasGlovesSet( pPlayer, pPlayer->GetTeamNumber() ) )
+    {
+        C_ViewmodelAttachmentModel* pGloveModel = AddViewmodelArmModel(
+            GetGlovesInfo( CSLoadout()->GetGlovesForPlayer( pPlayer, pPlayer->GetTeamNumber() ) )->szViewModel,
+            pPlayer->m_pViewmodelArmConfig->iSkintoneIndex,
+            pPlayer->m_pViewmodelArmConfig->bHideBareArms
+        );
+        
+        int iPaintKit = pPlayer->m_iGlovePaintKitID;
+            
+        if ( pGloveModel )
+        {
+            if ( iPaintKit > 0 )
+			{
+				const SkinDefinition_t* pSkinDef = g_SkinDatabase.FindSkinByPaintKit( iPaintKit );
+				if ( pSkinDef )
+				{
+					FOR_EACH_VEC(pSkinDef->materials, i)
+					{
+						const SkinDefinition_t::MaterialData_t& matData = pSkinDef->materials[i];
+						IMaterial* pMat = g_SkinDatabase.GetSkinMaterial( iPaintKit, matData.iMaterialIndex );
+						
+						if ( pMat )
+						{
+							pGloveModel->SetMaterialOverride( pMat, matData.iMaterialIndex );
+					    }
+					}
+				}
+			}
+        }
+        
+        if ( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModelGloveOverride[0] != NULL )
+        {
+            AddViewmodelArmModel( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModelGloveOverride );
+        }
+        else
+        {
+            AddViewmodelArmModel( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModel );
+        }
+    }
+    else
+    {
+        C_ViewmodelAttachmentModel* pGloveModel = AddViewmodelArmModel(
+            pPlayer->m_pViewmodelArmConfig->szAssociatedGloveModel,
+            pPlayer->m_pViewmodelArmConfig->iSkintoneIndex,
+            pPlayer->m_pViewmodelArmConfig->bHideBareArms
+        );
+
+        AddViewmodelArmModel( pPlayer->m_pViewmodelArmConfig->szAssociatedSleeveModel );
+    }
+}
 
 	// verify stattrak module and add if necessary
 	if ( pCSWeapon->HasStatTrak() )
@@ -704,35 +766,37 @@ void C_BaseViewModel::UpdateAllViewmodelAddons( void )
 }
 
 //--------------------------------------------------------------------------------------------------------
-void C_BaseViewModel::AddViewmodelArmModel( const char *pszArmsModel, int nSkintoneIndex, bool bHideBareArms )
+C_ViewmodelAttachmentModel* C_BaseViewModel::AddViewmodelArmModel( const char *pszArmsModel, int nSkintoneIndex, bool bHideBareArms )
 {
-	// Only create the view model attachment if we have a valid arm model
-	if ( pszArmsModel == NULL || pszArmsModel[0] == '\0' || modelinfo->GetModelIndex( pszArmsModel ) == -1 )
-		return;
+    if ( !pszArmsModel || pszArmsModel[0] == '\0' || modelinfo->GetModelIndex( pszArmsModel ) == -1 )
+        return nullptr;
 
-	C_ViewmodelAttachmentModel *pEnt = new class C_ViewmodelAttachmentModel;
-	if ( pEnt && pEnt->InitializeAsClientEntity( pszArmsModel, RENDER_GROUP_VIEW_MODEL_OPAQUE ) )
-	{
-		m_vecViewmodelArmModels[ m_vecViewmodelArmModels.AddToTail() ] = pEnt;
+    C_ViewmodelAttachmentModel *pEnt = new C_ViewmodelAttachmentModel;
+    if ( pEnt && pEnt->InitializeAsClientEntity( pszArmsModel, RENDER_GROUP_VIEW_MODEL_OPAQUE ) )
+    {
+        m_vecViewmodelArmModels.AddToTail( pEnt );
 
-		if ( nSkintoneIndex != -1 )
-			pEnt->m_nSkin = nSkintoneIndex;
+        if ( nSkintoneIndex != -1 )
+            pEnt->m_nSkin = nSkintoneIndex;
 
-		// PiMoN: magic trick to get 0.01 more fps on potato PCs
-		int iBodygroup = pEnt->FindBodygroupByName( "bare" );
-		if ( iBodygroup != -1 )
-			pEnt->SetBodygroup( iBodygroup, bHideBareArms );
+        int iBodygroup = pEnt->FindBodygroupByName( "bare" );
+        if ( iBodygroup != -1 )
+            pEnt->SetBodygroup( iBodygroup, bHideBareArms );
 
-		pEnt->SetParent( this );
-		pEnt->SetLocalOrigin( vec3_origin );
-		pEnt->UpdatePartitionListEntry();
-		pEnt->CollisionProp()->MarkPartitionHandleDirty();
-		pEnt->UpdateVisibility();
-		pEnt->SetViewmodel( this );
-		pEnt->SetUseParentLightingOrigin( true );
+        pEnt->SetParent( this );
+        pEnt->SetLocalOrigin( vec3_origin );
+        pEnt->UpdatePartitionListEntry();
+        pEnt->CollisionProp()->MarkPartitionHandleDirty();
+        pEnt->UpdateVisibility();
+        pEnt->SetViewmodel( this );
+        pEnt->SetUseParentLightingOrigin( true );
 
-		RemoveEffects( EF_NODRAW );
-	}
+        RemoveEffects( EF_NODRAW );
+
+        return pEnt;
+    }
+
+    return nullptr;
 }
 
 void C_BaseViewModel::AddViewmodelStatTrak( CWeaponCSBase *pWeapon, int holderIndex )

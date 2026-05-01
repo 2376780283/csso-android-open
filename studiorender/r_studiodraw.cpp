@@ -475,9 +475,9 @@ void CStudioRender::DrawShadows( const DrawModelInfo_t& info, int flags, int bon
 
 	VPROF("CStudioRender::DrawShadows");
 
-	IMaterial* pForcedMat = m_pRC->m_pForcedMaterial;
+	IMaterial* pForcedMat = m_pRC->m_pForcedMaterial[ 0 ];
 	OverrideType_t nForcedType = m_pRC->m_nForcedMaterialType;
-
+    
 	// Here, we have to redraw the model one time for each flashlight
 	// Having a material of NULL means that we are a light source.
 	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
@@ -507,7 +507,7 @@ void CStudioRender::DrawShadows( const DrawModelInfo_t& info, int flags, int bon
 	{
 		if( m_ShadowState[i].m_pMaterial )
 		{
-			m_pRC->m_pForcedMaterial = m_ShadowState[i].m_pMaterial;
+			m_pRC->m_pForcedMaterial[ 0 ] = m_ShadowState[i].m_pMaterial;
 			m_pRC->m_nForcedMaterialType = OVERRIDE_NORMAL;
 			R_StudioRenderModel( pRenderContext, 0, info.m_Body, 0, m_ShadowState[i].m_pProxyData,
 				NULL, NULL, flags, boneMask, info.m_Lod, NULL );
@@ -515,7 +515,7 @@ void CStudioRender::DrawShadows( const DrawModelInfo_t& info, int flags, int bon
 	}
 
 	// Restore the previous forced material
-	m_pRC->m_pForcedMaterial = pForcedMat;
+	m_pRC->m_pForcedMaterial[ 0 ] = pForcedMat;
 	m_pRC->m_nForcedMaterialType = nForcedType;
 }
 
@@ -2941,6 +2941,8 @@ int CStudioRender::R_StudioDrawPoints( IMatRenderContext *pRenderContext, int sk
 //	int* pIndices = (int*)_alloca( m_pSubModel->nummeshes * sizeof(int) ); 
 //	int numMeshes = SortMeshes( pIndices, ppMaterials, pskinref, vforward, r_origin );
 
+    bool bHasMaterialOverride = ( m_pRC->m_pForcedMaterial[ 0 ] || ( m_pRC->m_nForcedMaterialType == OVERRIDE_DEPTH_WRITE ) );
+
 	// draw each mesh
 	for ( i = 0; i < m_pSubModel->nummeshes; ++i)
 	{
@@ -2969,7 +2971,8 @@ int CStudioRender::R_StudioDrawPoints( IMatRenderContext *pRenderContext, int sk
 		   
 		// The following are special cases that can't be covered with
 		// the normal static/dynamic methods due to optimization reasons
-		switch ( pmesh->materialtype )
+		int nType = bHasMaterialOverride ? 0 : pmesh->materialtype;
+		switch( nType )
 		{
 		case 1:	
 			// eyeballs

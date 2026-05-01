@@ -63,7 +63,12 @@ EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CStudioRenderContext, IStudioRender,
 CStudioRenderContext::CStudioRenderContext()
 {
 	// Initialize render context
-	m_RC.m_pForcedMaterial = NULL;
+	for ( int i = 0; i < MAX_MAT_OVERRIDES; i++ )
+	{
+		m_RC.m_pForcedMaterial[ i ] = NULL;
+		m_RC.m_nForcedMaterialIndex[ i ] = -1;
+	}
+	m_RC.m_nForcedMaterialIndexCount = 0;
 	m_RC.m_nForcedMaterialType = OVERRIDE_NORMAL;
 	m_RC.m_ColorMod[0] = m_RC.m_ColorMod[1] = m_RC.m_ColorMod[2] = 1.0f;
 	m_RC.m_AlphaMod = 1.0f;
@@ -1816,7 +1821,7 @@ void CStudioRenderContext::GetPerfStats( DrawModelResults_t *pResults, const Dra
 			{
 				pSpewBuf->Printf( "    material: %s\n", pMaterial->GetName() );
 			}
-			int numPasses = m_RC.m_pForcedMaterial ? m_RC.m_pForcedMaterial->GetNumPasses() : pMaterial->GetNumPasses();
+			int numPasses = m_RC.m_pForcedMaterial[ 0 ] ? m_RC.m_pForcedMaterial[ 0 ]->GetNumPasses() : pMaterial->GetNumPasses();
 			if( pSpewBuf )
 			{
 				pSpewBuf->Printf( "        numPasses:%d\n", numPasses );
@@ -1950,20 +1955,92 @@ void CStudioRenderContext::GetCurrentConfig( StudioRenderConfig_t& config )
 //-----------------------------------------------------------------------------
 // Material overrides
 //-----------------------------------------------------------------------------
-void CStudioRenderContext::ForcedMaterialOverride( IMaterial *newMaterial, OverrideType_t nOverrideType )
+void CStudioRenderContext::ForcedMaterialOverride( IMaterial *newMaterial, OverrideType_t nOverrideType, int nMaterialIndex )
 {
-	m_RC.m_pForcedMaterial = newMaterial;
-	m_RC.m_nForcedMaterialType = nOverrideType;
+    DevMsg("[ForcedMaterialOverride] Called with: material=%s, type=%d, index=%d\n",
+           newMaterial ? newMaterial->GetName() : "NULL",
+           nOverrideType,
+           nMaterialIndex);
+    
+    if ( nOverrideType == OVERRIDE_SELECTIVE )
+    {
+        // ВАЖНО: Установить тип СРАЗУ
+        m_RC.m_nForcedMaterialType = nOverrideType;
+        
+        if ( newMaterial == nullptr )
+        {
+            DevMsg("  -> Clearing all overrides (count was %d)\n", m_RC.m_nForcedMaterialIndexCount);
+            
+            // Очистить весь массив
+            m_RC.m_nForcedMaterialIndexCount = 0;
+            for ( int i = 0; i < MAX_MAT_OVERRIDES; i++ )
+            {
+                m_RC.m_pForcedMaterial[i] = nullptr;
+                m_RC.m_nForcedMaterialIndex[i] = -1;
+            }
+        }
+        else
+        {
+            // Проверить, не установлен ли уже материал для этого индекса
+            int nExistingSlot = -1;
+            for ( int i = 0; i < m_RC.m_nForcedMaterialIndexCount; i++ )
+            {
+                if ( m_RC.m_nForcedMaterialIndex[i] == nMaterialIndex )
+                {
+                    nExistingSlot = i;
+                    break;
+                }
+            }
+            
+            if ( nExistingSlot != -1 )
+            {
+                // Обновить существующий
+                m_RC.m_pForcedMaterial[nExistingSlot] = newMaterial;
+                DevMsg("  -> Updated existing slot %d for material index %d\n", nExistingSlot, nMaterialIndex);
+            }
+            else
+            {
+                // Добавить новый
+                if ( m_RC.m_nForcedMaterialIndexCount < MAX_MAT_OVERRIDES )
+                {
+                    int newSlot = m_RC.m_nForcedMaterialIndexCount;
+                    m_RC.m_pForcedMaterial[newSlot] = newMaterial;
+                    m_RC.m_nForcedMaterialIndex[newSlot] = nMaterialIndex;
+                    m_RC.m_nForcedMaterialIndexCount++;
+                    
+                    DevMsg("  -> Added new slot %d for material index %d (total now: %d)\n", 
+                           newSlot, nMaterialIndex, m_RC.m_nForcedMaterialIndexCount);
+                }
+                else
+                {
+                    Warning("  -> FAILED: Exceeded max material overrides! (max=%d)\n", MAX_MAT_OVERRIDES);
+                }
+            }
+        }
+        
+        DevMsg("  -> Final state: count=%d\n", m_RC.m_nForcedMaterialIndexCount);
+        for ( int i = 0; i < m_RC.m_nForcedMaterialIndexCount; i++ )
+        {
+            DevMsg("     Slot[%d]: mat_index=%d, material=%s\n", 
+                   i,
+                   m_RC.m_nForcedMaterialIndex[i],
+                   m_RC.m_pForcedMaterial[i] ? m_RC.m_pForcedMaterial[i]->GetName() : "NULL");
+        }
+    }
+    else
+    {
+        DevMsg("  -> Setting normal override (type=%d)\n", nOverrideType);
+        m_RC.m_nForcedMaterialType = nOverrideType;
+        m_RC.m_pForcedMaterial[0] = newMaterial;
+        m_RC.m_nForcedMaterialIndex[0] = -1;
+        m_RC.m_nForcedMaterialIndexCount = 0;
+    }
 }
 
-//-----------------------------------------------------------------------------
-// Return the material overrides
-//-----------------------------------------------------------------------------
-void CStudioRenderContext::GetMaterialOverride( IMaterial** ppOutForcedMaterial, OverrideType_t* pOutOverrideType )
+bool CStudioRenderContext::IsForcedMaterialOverride() const
 {
-	Assert( ppOutForcedMaterial != NULL && pOutOverrideType != NULL );
-	*ppOutForcedMaterial = m_RC.m_pForcedMaterial;
-	*pOutOverrideType = m_RC.m_nForcedMaterialType;
+    return (m_RC.m_nForcedMaterialType == OVERRIDE_SELECTIVE && m_RC.m_nForcedMaterialIndexCount > 0) ||
+           (m_RC.m_nForcedMaterialType != OVERRIDE_SELECTIVE && m_RC.m_pForcedMaterial[0] != nullptr);
 }
 
 //-----------------------------------------------------------------------------
@@ -2192,13 +2269,15 @@ int CStudioRenderContext::ComputeRenderLOD( IMatRenderContext *pRenderContext,
 // It has the effect of ensuring the material vars are in the correct state
 // since material var sets generated by the proxy bind are queued.
 //-----------------------------------------------------------------------------
-void CStudioRenderContext::InvokeBindProxies( const DrawModelInfo_t &info )
+void CStudioRenderContext::InvokeBindProxies( IMatRenderContext *pRenderContext, ICallQueue *pCallQueue, const DrawModelInfo_t &info )
 {
-	if ( m_RC.m_pForcedMaterial )
+	bool bSelectiveOverride = ( m_RC.m_nForcedMaterialType == OVERRIDE_SELECTIVE );
+
+	if ( m_RC.m_pForcedMaterial[ 0 ] && !bSelectiveOverride )
 	{
-		if ( m_RC.m_nForcedMaterialType == OVERRIDE_NORMAL && m_RC.m_pForcedMaterial->HasProxy() )
+		if ( m_RC.m_nForcedMaterialType == OVERRIDE_NORMAL && m_RC.m_pForcedMaterial[ 0 ]->HasProxy() )
 		{
-			m_RC.m_pForcedMaterial->CallBindProxy( info.m_pClientEntity );
+			m_RC.m_pForcedMaterial[ 0 ]->CallBindProxy( info.m_pClientEntity );
 		}
 		return;
 	}
@@ -2228,7 +2307,27 @@ void CStudioRenderContext::InvokeBindProxies( const DrawModelInfo_t &info )
 			if ( pProxyCalled[ nMaterialIndex ] )
 				continue;
 			pProxyCalled[ nMaterialIndex ] = true;
-			IMaterial* pMaterial = ppMaterials[ nMaterialIndex ]; 
+
+			int nOverrideIndex = -1;
+			for ( int i = 0; i < m_RC.m_nForcedMaterialIndexCount; i++ )
+			{
+				if ( m_RC.m_nForcedMaterialIndex[ i ] == nMaterialIndex )
+				{
+					nOverrideIndex = i;
+					break;
+				}
+			}
+
+			IMaterial* pMaterial = NULL;
+			if ( bSelectiveOverride && nOverrideIndex != -1 )
+			{
+				pMaterial = m_RC.m_pForcedMaterial[ nOverrideIndex ];
+			}
+			else
+			{
+				pMaterial = ppMaterials[ nMaterialIndex ]; 
+			}
+
 			if ( pMaterial && pMaterial->HasProxy() )
 			{
 				pMaterial->CallBindProxy( info.m_pClientEntity );
@@ -2236,6 +2335,7 @@ void CStudioRenderContext::InvokeBindProxies( const DrawModelInfo_t &info )
 		}
 	}
 }
+
 
 
 //-----------------------------------------------------------------------------
@@ -2298,7 +2398,7 @@ void CStudioRenderContext::DrawModel( DrawModelResults_t *pResults, const DrawMo
 		CMatRenderData<float> rdFlex( pRenderContext );
 		CMatRenderData<float> rdFlexDelayed( pRenderContext );
 
-		InvokeBindProxies( info );
+		InvokeBindProxies( pRenderContext, pCallQueue, info );
 		pBoneToWorld = rdMatrix.Base();
 		if ( info.m_pStudioHdr->numflexdesc != 0 )
 		{
@@ -2362,7 +2462,7 @@ void CStudioRenderContext::DrawModelStaticProp( const DrawModelInfo_t& info, con
 	}
 	else
 	{
-		InvokeBindProxies( info );
+		InvokeBindProxies( pRenderContext, pCallQueue, info );
 		pCallQueue->QueueCall( g_pStudioRenderImp, &CStudioRender::DrawModelStaticProp, info, m_RC, modelToWorld, flags );
 	}
 }

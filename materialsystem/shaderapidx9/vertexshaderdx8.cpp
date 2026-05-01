@@ -49,6 +49,7 @@ typedef int SOCKET;
 #include "materialsystem/shader_vcs_version.h"
 #include "tier1/lzmaDecoder.h"
 #include "tier1/utlmap.h"
+#include "shaderlib/shadercombosemantics.h"
 
 #include "datacache/idatacache.h"
 #include "tier1/diff.h"
@@ -80,6 +81,8 @@ typedef int SOCKET;
 // NOTE: This has to be the last file included!
 #include "tier0/memdbgon.h"
 
+// mapping from vcs file basename to shader combo semantics information.
+static CUtlStringMap<const ShaderComboSemantics_t *> s_ShaderComboInfoByName;
 
 // It currently includes windows.h and we don't want that.
 #ifdef USE_ACTUAL_DX
@@ -694,6 +697,8 @@ private:
 
 	// Destroys all shaders
 	void					DestroyAllShaders();
+
+	virtual void			AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics );
 
 	// Destroy a particular vertex shader
 	void					DestroyVertexShader( VertexShader_t shader );
@@ -3748,6 +3753,14 @@ CON_COMMAND( mat_shadercount, "display count of all shaders and reset that count
 	Warning( "Num Pixel Shaders = %d Vertex Shaders=%d\n", s_NumPixelShadersCreated, s_NumVertexShadersCreated );
 	s_NumVertexShadersCreated = 0;
 	s_NumPixelShadersCreated = 0;
+}
+
+void CShaderManager::AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics )
+{
+	if ( !s_ShaderComboInfoByName.Defined( pSemantics->pShaderName ) )
+	{
+		s_ShaderComboInfoByName[pSemantics->pShaderName] = pSemantics;
+	}
 }
 
 #if defined( DX_TO_GL_ABSTRACTION )

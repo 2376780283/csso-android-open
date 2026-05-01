@@ -34,6 +34,8 @@ enum MaterialSystem_Config_Flags_t
 	MATSYS_VIDCFG_FLAGS_USING_MULTIPLE_WINDOWS      = ( 1 << 15 ),
 	MATSYS_VIDCFG_FLAGS_DISABLE_PHONG               = ( 1 << 16 ),
 	MATSYS_VIDCFG_FLAGS_VR_MODE						= ( 1 << 17 ),
+	MATSYS_VIDCFG_FLAGS_NOBORDER					= ( 1 << 18 ),
+	MATSYS_VIDCFG_FLAGS_OLD_PHONG					= ( 1 << 19 ),
 };
 
 struct MaterialSystemHardwareIdentifier_t
@@ -65,6 +67,7 @@ struct MaterialSystem_Config_t
 	bool ScaleToOutputResolution() const { return ( m_Flags & MATSYS_VIDCFG_FLAGS_SCALE_TO_OUTPUT_RESOLUTION ) != 0; }
 	bool UsingMultipleWindows() const { return ( m_Flags & MATSYS_VIDCFG_FLAGS_USING_MULTIPLE_WINDOWS ) != 0; }
 	bool UsePhong() const { return ( m_Flags & MATSYS_VIDCFG_FLAGS_DISABLE_PHONG ) == 0; }
+	bool UseOldPhong() const { return ( m_Flags & MATSYS_VIDCFG_FLAGS_OLD_PHONG ) != 0; }
 	bool VRMode() const { return ( m_Flags & MATSYS_VIDCFG_FLAGS_VR_MODE) != 0; }
 	bool ShadowDepthTexture() const { return m_bShadowDepthTexture; }
 	bool MotionBlur() const { return m_bMotionBlur; }
@@ -165,6 +168,8 @@ struct MaterialSystem_Config_t
 		SetFlag( MATSYS_VIDCFG_FLAGS_USING_MULTIPLE_WINDOWS, false );
 		SetFlag( MATSYS_VIDCFG_FLAGS_DISABLE_PHONG, false );
 		SetFlag( MATSYS_VIDCFG_FLAGS_VR_MODE, false );
+		SetFlag( MATSYS_VIDCFG_FLAGS_NOBORDER, false );
+		SetFlag( MATSYS_VIDCFG_FLAGS_OLD_PHONG, false );
 
 		m_VideoMode.m_Width = 640;
 		m_VideoMode.m_Height = 480;

@@ -14,6 +14,8 @@
 
 #include "tier1/fmtstr.h"
 #include "vstdlib/jobthread.h"
+#include <thread>
+#include <mutex>
 
 #ifdef USE_SDL
 	#include "appframework/ilaunchermgr.h"
@@ -3853,6 +3855,38 @@ void Host_InitProcessor( void )
 }
 
 //-----------------------------------------------------------------------------
+// 加载性能监控
+//-----------------------------------------------------------------------------
+namespace HostLoadPerformance
+{
+	struct LoadMetrics {
+		double t_MaterialSystem = 0.0;
+		double t_ModelLoader = 0.0;
+		double t_StaticProps = 0.0;
+		double t_StudioRender = 0.0;
+		double t_Total = 0.0;
+		bool bEnabled = false;
+	};
+	
+	static LoadMetrics g_Metrics;
+	
+	void PrintMetrics()
+	{
+		if (!g_Metrics.bEnabled) return;
+		
+		Msg("=== 加载性能统计 ===\n");
+		Msg("材质系统:  %.2f ms\n", g_Metrics.t_MaterialSystem * 1000.0);
+		Msg("模型加载:  %.2f ms\n", g_Metrics.t_ModelLoader * 1000.0);
+		Msg("静态Prop: %.2f ms\n", g_Metrics.t_StaticProps * 1000.0);
+		Msg("角色渲染:  %.2f ms\n", g_Metrics.t_StudioRender * 1000.0);
+		Msg("总计时间:  %.2f ms\n", g_Metrics.t_Total * 1000.0);
+		Msg("==================\n");
+	}
+}
+
+static ConVar host_load_benchmark("host_load_benchmark", "0", 0, "启用加载性能基准测试");
+
+//-----------------------------------------------------------------------------
 // Specifically used by the model loading code to mark models
 // touched by the current map
 //-----------------------------------------------------------------------------
@@ -4187,18 +4221,61 @@ void Host_Init( bool bDedicated )
 		TRACEINIT( CL_Init(), CL_Shutdown() );
 
 		// NOTE: This depends on the mod search path being set up
-		TRACEINIT( InitMaterialSystem(), ShutdownMaterialSystem() );
+		// 并行初始化 - 材质系统和其他系统可以并行加载
+		double t_init_start = host_load_benchmark.GetBool() ? Plat_FloatTime() : 0.0;
+		
+		std::thread* t1 = NULL;
+		std::thread* t2 = NULL;
+		std::thread* t3 = NULL;
+		std::mutex metrics_mutex;
 
-		TRACEINIT( modelloader->Init(), modelloader->Shutdown() );
+		// 线程1: 材质系统初始化 (CPU密集)
+		t1 = new std::thread([&metrics_mutex]() {
+			double t0 = Plat_FloatTime();
+			TRACEINIT( InitMaterialSystem(), ShutdownMaterialSystem() );
+			if (host_load_benchmark.GetBool()) {
+				std::lock_guard<std::mutex> lock(metrics_mutex);
+				HostLoadPerformance::g_Metrics.t_MaterialSystem = Plat_FloatTime() - t0;
+			}
+		});
 
-		TRACEINIT( StaticPropMgr()->Init(), StaticPropMgr()->Shutdown() );
+		// 主线程继续初始化其他不依赖材质的部分
+		TRACEINIT( TextMessageInit(), TextMessageShutdown() );
 
+		// 线程2: Prop管理初始化 (I/O密集)
+		t2 = new std::thread([&metrics_mutex]() {
+			double t0 = Plat_FloatTime();
+			TRACEINIT( StaticPropMgr()->Init(), StaticPropMgr()->Shutdown() );
+			if (host_load_benchmark.GetBool()) {
+				std::lock_guard<std::mutex> lock(metrics_mutex);
+				HostLoadPerformance::g_Metrics.t_StaticProps = Plat_FloatTime() - t0;
+			}
+		});
+
+		// 线程3: 模型加载器初始化 (I/O密集)
+		t3 = new std::thread([&metrics_mutex]() {
+			double t0 = Plat_FloatTime();
+			TRACEINIT( modelloader->Init(), modelloader->Shutdown() );
+			if (host_load_benchmark.GetBool()) {
+				std::lock_guard<std::mutex> lock(metrics_mutex);
+				HostLoadPerformance::g_Metrics.t_ModelLoader = Plat_FloatTime() - t0;
+			}
+		});
+
+		// 等待所有线程完成
+		if (t1) { t1->join(); delete t1; }
+		if (t2) { t2->join(); delete t2; }
+		if (t3) { t3->join(); delete t3; }
+
+		// 现在执行依赖材质系统的初始化
+		double t_studio = Plat_FloatTime();
 		TRACEINIT( InitStudioRender(), ShutdownStudioRender() );
+		if (host_load_benchmark.GetBool()) {
+			HostLoadPerformance::g_Metrics.t_StudioRender = Plat_FloatTime() - t_studio;
+		}
 
 		//startup vgui
 		TRACEINIT( EngineVGui()->Init(), EngineVGui()->Shutdown() );
-
-		TRACEINIT( TextMessageInit(), TextMessageShutdown() );
 
 		TRACEINIT( ClientDLL_Init(), ClientDLL_Shutdown() );
 
@@ -4210,21 +4287,77 @@ void Host_Init( bool bDedicated )
 
 		// hookup interfaces
 		EngineVGui()->Connect();
+
+		if (host_load_benchmark.GetBool()) {
+			HostLoadPerformance::g_Metrics.t_Total = Plat_FloatTime() - t_init_start;
+			HostLoadPerformance::g_Metrics.bEnabled = true;
+		}
 	}
 	else
 #endif
 	{
-		TRACEINIT( InitMaterialSystem(), ShutdownMaterialSystem() );
+		// 服务器模式 - 并行初始化
+		double t_init_start = host_load_benchmark.GetBool() ? Plat_FloatTime() : 0.0;
+		
+		std::thread* t1 = NULL;
+		std::thread* t2 = NULL;
+		std::thread* t3 = NULL;
+		std::thread* t4 = NULL;
+		std::mutex metrics_mutex;
 
-		TRACEINIT( modelloader->Init(), modelloader->Shutdown() );
+		// 线程1: 材质系统
+		t1 = new std::thread([&metrics_mutex]() {
+			double t0 = Plat_FloatTime();
+			TRACEINIT( InitMaterialSystem(), ShutdownMaterialSystem() );
+			if (host_load_benchmark.GetBool()) {
+				std::lock_guard<std::mutex> lock(metrics_mutex);
+				HostLoadPerformance::g_Metrics.t_MaterialSystem = Plat_FloatTime() - t0;
+			}
+		});
 
-		TRACEINIT( StaticPropMgr()->Init(), StaticPropMgr()->Shutdown() );
+		// 线程2: Prop管理
+		t2 = new std::thread([&metrics_mutex]() {
+			double t0 = Plat_FloatTime();
+			TRACEINIT( StaticPropMgr()->Init(), StaticPropMgr()->Shutdown() );
+			if (host_load_benchmark.GetBool()) {
+				std::lock_guard<std::mutex> lock(metrics_mutex);
+				HostLoadPerformance::g_Metrics.t_StaticProps = Plat_FloatTime() - t0;
+			}
+		});
 
+		// 线程3: 模型加载
+		t3 = new std::thread([&metrics_mutex]() {
+			double t0 = Plat_FloatTime();
+			TRACEINIT( modelloader->Init(), modelloader->Shutdown() );
+			if (host_load_benchmark.GetBool()) {
+				std::lock_guard<std::mutex> lock(metrics_mutex);
+				HostLoadPerformance::g_Metrics.t_ModelLoader = Plat_FloatTime() - t0;
+			}
+		});
+
+		// 线程4: Decal初始化
+		t4 = new std::thread([]() {
+			TRACEINIT( Decal_Init(), Decal_Shutdown() );
+		});
+
+		// 等待所有初始化完成
+		if (t1) { t1->join(); delete t1; }
+		if (t2) { t2->join(); delete t2; }
+		if (t3) { t3->join(); delete t3; }
+		if (t4) { t4->join(); delete t4; }
+
+		double t_studio = Plat_FloatTime();
 		TRACEINIT( InitStudioRender(), ShutdownStudioRender() );
-
-		TRACEINIT( Decal_Init(), Decal_Shutdown() );
+		if (host_load_benchmark.GetBool()) {
+			HostLoadPerformance::g_Metrics.t_StudioRender = Plat_FloatTime() - t_studio;
+		}
 
 		cl.m_nSignonState = SIGNONSTATE_NONE; // disable client
+
+		if (host_load_benchmark.GetBool()) {
+			HostLoadPerformance::g_Metrics.t_Total = Plat_FloatTime() - t_init_start;
+			HostLoadPerformance::g_Metrics.bEnabled = true;
+		}
 	}
 
 #ifndef SWDS
@@ -4276,6 +4409,9 @@ void Host_Init( bool bDedicated )
 #endif
 
 	Host_AllowQueuedMaterialSystem( false );
+
+	// 输出加载性能统计
+	HostLoadPerformance::PrintMetrics();
 
 	// Finished initializing
 	host_initialized = true;

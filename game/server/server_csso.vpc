@@ -40,6 +40,9 @@ $Project "Server (CStrike)"
 		$File	"team_spawnpoint.cpp"
 		$File	"team_spawnpoint.h"
 		$File	"$SRCDIR\game\shared\teamplayroundbased_gamerules.cpp"
+		$File    "$SRCDIR\game\shared\cstrike\cs_skin_shareddefs.h"
+		$File "sunlightshadowcontrol.cpp"
+		$File	"env_cascade_light.cpp"
 
 		$Folder	"CounterStrike DLL"
 		{

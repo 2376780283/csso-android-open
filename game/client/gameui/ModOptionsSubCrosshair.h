@@ -13,6 +13,7 @@
 
 #include <vgui_controls/PropertyPage.h>
 #include <vgui_controls/ImagePanel.h>
+#include <vgui_controls/ScrollBar.h>
 #include "imageutils.h"
 
 class CLabeledCommandComboBox;
@@ -33,6 +34,8 @@ public:
 	virtual void UpdateVisibility() {}
 };
 
+class CrosshairImagePanelCS;
+
 //-----------------------------------------------------------------------------
 // Purpose: crosshair options property page
 //-----------------------------------------------------------------------------
@@ -46,6 +49,9 @@ public:
 
 	MESSAGE_FUNC( OnControlModified, "ControlModified" );
 
+	// Called when layout needs to be performed
+	virtual void PerformLayout() override;
+
 protected:
 	// Called when page is loaded.  Data should be reloaded from document into controls.
 	virtual void OnResetData();
@@ -53,7 +59,18 @@ protected:
 	virtual void OnApplyChanges();
 
 private:
-	CrosshairImagePanelBase *m_pCrosshairImage;
+	CrosshairImagePanelCS *m_pCrosshairImage;
+
+	// Scroll components
+	vgui::Panel *m_pScrollContainer;
+	vgui::ScrollBar *m_pVScrollBar;
+
+	// Message handlers for scroll
+	MESSAGE_FUNC_PARAMS( OnScrollBarSliderMoved, "ScrollBarSliderMoved", data );
+
+public:
+	// Getter for scroll container (used by child panels to parent controls)
+	vgui::Panel* GetScrollContainer() { return m_pScrollContainer; }
 };
 
 #endif // MODOPTIONSSUBCROSSHAIR_H

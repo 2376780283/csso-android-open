@@ -47,22 +47,32 @@ COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "Op
 {
 	SetDeleteSelfOnClose(true);
 
-	int w = 512;
-	int h = 406;
-	if (IsProportional())
+	// int w = 512;
+	// int h = 406;
+	int w, h;
+	vgui::surface()->GetScreenSize(w, h);
+	/*if (IsProportional())
 	{
 		w = scheme()->GetProportionalScaledValueEx(GetScheme(), w);
 		h = scheme()->GetProportionalScaledValueEx(GetScheme(), h);
-	}
-
+	}*/
+	SetCenterSheetEnabled(true);
+	SetCloseButtonVisible(false);
+	SetMoveable(false);
+	
+	SetFixedSheetWidth(512);
 	SetBounds(0, 0, w, h);
 
 	SetSizeable( false );
 
 	SetTitle("#GameUI_Options", true);
+	SetTabSide(vgui::PropertySheet::TAB_LEFT);
+	SetTabWidth(124);
+
+	SetPaintBackgroundEnabled(true);
 
 	// debug timing code, this function takes too long
-//	double s4 = system()->GetCurrentTime();
+    // double s4 = system()->GetCurrentTime();
 
 #if defined( WIN32 ) && !defined( _X360 )
 	// NVNT START see if the user has a haptic device via convar. if so create haptics dialog.
@@ -83,10 +93,8 @@ COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "Op
 	{
 		AddPage(new COptionsSubPortal(this), "#GameUI_Portal");
 	}
-#ifndef ANDROID
 	AddPage(new COptionsSubKeyboard(this), "#GameUI_Keyboard");
 	AddPage(new COptionsSubMouse(this), "#GameUI_Mouse");
-#endif
 #ifdef ANDROID
 	AddPage(new COptionsSubTouch(this), "Touch");
 #endif
@@ -167,4 +175,9 @@ void COptionsDialog::OnGameUIHidden()
 			PostMessage( pChild, new KeyValues( "GameUIHidden" ) );
 		}
 	}
+}
+
+void COptionsDialog::PaintBackground()
+{
+	m_BlurHelper.DrawBlur(this, 160.0f);
 }

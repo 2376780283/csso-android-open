@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "cstrikespectatorgui.h"
 #include "cs_hud_chat.h"
+#include "cdll_client_int.h"
 #include "c_cs_player.h"
 #include "c_cs_playerresource.h"
 #include "hud_macros.h"
@@ -31,6 +32,20 @@ DECLARE_HUD_MESSAGE( CHudChat, RawAudio );
 
 extern ConVar cl_draw_only_deathnotices;
 
+// Safezone support for chat
+/*
+static CHudChat *s_pChatInstance = NULL;
+static int s_nChatBaseXPos = 0;
+static int s_nChatBaseYPos = 0;
+
+static void ChatSafeZoneCallback()
+{
+	if ( s_pChatInstance )
+	{
+		s_pChatInstance->UpdateSafeZonePosition();
+	}
+}
+*/
 
 //=====================
 //CHudChatLine
@@ -44,6 +59,17 @@ CHudChatLine::CHudChatLine( vgui::Panel *parent, const char *panelName ) : CBase
 void CHudChatLine::ApplySchemeSettings(vgui::IScheme *pScheme)
 {
 	BaseClass::ApplySchemeSettings( pScheme );
+}
+
+void CHudChatLine::Paint()
+{
+    int wide, tall;
+    GetSize( wide, tall );
+  /* 
+    vgui::surface()->DrawSetColor( Color(0, 0, 0, 150) );
+    vgui::surface()->DrawFilledRect( 0, 0, wide, tall );
+    */
+    BaseClass::Paint();
 }
 //=====================
 //CHudChatInputLine
@@ -69,6 +95,8 @@ void CHudChatInputLine::ApplySchemeSettings(vgui::IScheme *pScheme)
 
 CHudChat::CHudChat( const char *pElementName ) : BaseClass( pElementName )
 {
+//	s_pChatInstance = this;
+
 	//=============================================================================
 	// HPE_BEGIN:
 	// [tj] Add this to the render group that disappears when the scoreboard is up
@@ -83,6 +111,14 @@ CHudChat::CHudChat( const char *pElementName ) : BaseClass( pElementName )
 	//=============================================================================
 	// HPE_END
 	//=============================================================================
+
+	//RegisterSafeZoneCallback( ChatSafeZoneCallback );
+}
+
+CHudChat::~CHudChat()
+{
+/*	UnregisterSafeZoneCallback( ChatSafeZoneCallback );
+	s_pChatInstance = NULL;*/
 }
 
 bool CHudChat::ShouldDraw()
@@ -117,6 +153,7 @@ void CHudChat::Init( void )
 	HOOK_HUD_MESSAGE( CHudChat, SayText2 );
 	HOOK_HUD_MESSAGE( CHudChat, TextMsg );
 	HOOK_HUD_MESSAGE( CHudChat, RawAudio );
+	m_bIsRadioMessage = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -124,6 +161,7 @@ void CHudChat::Init( void )
 //-----------------------------------------------------------------------------
 void CHudChat::Reset( void )
 {
+	m_bIsRadioMessage = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -148,8 +186,11 @@ void CHudChat::MsgFunc_RadioText( bf_read &msg )
 
 	char ansiString[512];
 	g_pVGuiLocalize->ConvertUnicodeToANSI( ConvertCRtoNL( szBuf[5] ), ansiString, sizeof( ansiString ) );
+    
+    m_bIsRadioMessage = true;
 	ChatPrintf( client, CHAT_FILTER_TEAMCHANGE, "%s", ansiString );
-
+    m_bIsRadioMessage = false;
+    
 	CLocalPlayerFilter filter;
 	C_BaseEntity::EmitSound( filter, SOUND_FROM_LOCAL_PLAYER, "HudChat.Message" );
 }
@@ -278,13 +319,13 @@ Color CHudChat::GetClientColor( int clientIndex )
 	{
 		switch ( g_PR->GetTeam( clientIndex ) )
 		{
-		case 2	: return g_ColorRed;
+		case 2	: return g_ColorTer;
 		case 3	: return g_ColorBlue;
 		default	: return g_ColorGrey;
 		}
 	}
 
-	return g_ColorYellow;
+	return g_ColorWhite;
 }
 
 //-----------------------------------------------------------------------------
@@ -329,7 +370,14 @@ Color CHudChat::GetTextColorForClient( TextColor colorNum, int clientIndex )
 		break;
 
 	default:
-		c = g_ColorYellow;
+	    if (m_bIsRadioMessage)
+	    {
+		    c = GetClientColor( clientIndex );
+		}
+		else
+		{
+		c = g_ColorWhite;
+		}
 	}
 
 	return Color( c[0], c[1], c[2], 255 );
@@ -363,3 +411,22 @@ void CHudChat::StopMessageMode( void )
 
 	BaseClass::StopMessageMode();
 }
+
+void CHudChat::ApplySchemeSettings( vgui::IScheme *pScheme )
+{
+	BaseClass::ApplySchemeSettings( pScheme );
+
+	// Store base position from .res file
+	//GetPos( s_nChatBaseXPos, s_nChatBaseYPos );
+	//UpdateSafeZonePosition();
+}
+/*
+void CHudChat::UpdateSafeZonePosition()
+{
+	// Apply safezone offset - chat is anchored to bottom-left
+	int left, top, right, bottom;
+	GetSafeZoneMargins( left, top, right, bottom );
+
+	SetPos( s_nChatBaseXPos + left, s_nChatBaseYPos - bottom );
+}
+*/

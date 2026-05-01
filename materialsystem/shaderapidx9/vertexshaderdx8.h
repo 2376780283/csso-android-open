@@ -103,6 +103,8 @@ public:
 	virtual void BindVertexShader( VertexShaderHandle_t shader ) = 0;
 	virtual void BindPixelShader( PixelShaderHandle_t shader ) = 0;
 
+	virtual void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics ) = 0;
+
 #if defined( _X360 )
 	virtual const char *GetActiveVertexShaderName() = 0;
 	virtual const char *GetActivePixelShaderName() = 0;

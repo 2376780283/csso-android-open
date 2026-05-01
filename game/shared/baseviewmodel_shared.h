@@ -17,11 +17,13 @@
 #include "shared_classnames.h"
 #include "econ/ihasowner.h"
 #ifdef CSTRIKE_DLL
+class C_CSPlayer;
 #endif
 
 class CBaseCombatWeapon;
 class CBaseCombatCharacter;
 class CVGuiScreen;
+
 
 #if defined( CLIENT_DLL )
 #define CBaseViewModel C_BaseViewModel
@@ -165,7 +167,7 @@ public:
 	// Should this object receive shadows?
 	virtual bool			ShouldReceiveProjectedTextures( int flags )
 	{
-		return false;
+		return true;
 	}
 
 	// Add entity to visible view models list?
@@ -182,7 +184,8 @@ public:
 	void					UpdateAllViewmodelAddons( void );
 
 #if defined ( CLIENT_DLL )
-	void					AddViewmodelArmModel( const char *pszModel, int nSkintoneIndex = 0, bool bHideBareArms = false );
+    bool                    IsGloveModelForPlayer( C_CSPlayer *pPlayer, const char *pszModel );
+	C_ViewmodelAttachmentModel* AddViewmodelArmModel( const char *pszModel, int nSkintoneIndex = -1, bool bHideBareArms = false );
 	void					AddViewmodelStatTrak( C_WeaponCSBase* pWeapon, int holderIndex );
 	void					RemoveViewmodelArmModels( void );
 	void					RemoveViewmodelStatTrak( void );

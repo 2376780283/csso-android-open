@@ -84,6 +84,7 @@ def build(bld):
 		libs = ['DL', 'M', 'LOG']
 
 	install_path = None if bld.env.BUILD_SDK else bld.env.LIBDIR
+	lto_flags = ['-flto']
 
 	bld.shlib(
 		source   = source,
@@ -93,6 +94,9 @@ def build(bld):
 		includes = includes,
 		defines  = defines,
 		use      = libs,
+		cflags       = bld.env.CFLAGS + lto_flags,
+		cxxflags     = bld.env.CXXFLAGS + lto_flags,
+		linkflags    = bld.env.LINKFLAGS + lto_flags,
 		install_path = install_path,
 		subsystem = bld.env.MSVC_SUBSYSTEM,
 		idx      = bld.get_taskgen_count()

@@ -3301,12 +3301,13 @@ int CMaterial::ShaderParamCount() const
 //-----------------------------------------------------------------------------
 // VMT parser
 //-----------------------------------------------------------------------------
-void InsertKeyValues( KeyValues& dst, KeyValues& src, bool bCheckForExistence, bool bRecursive )
+void InsertKeyValues( KeyValues& dst, KeyValues& src, MaterialPatchType_t nPatchType, bool bRecursive )
 {
 	KeyValues *pSrcVar = src.GetFirstSubKey();
 	while( pSrcVar )
 	{
-		if ( !bCheckForExistence || dst.FindKey( pSrcVar->GetName() ) )
+		bool bFound = dst.FindKey( pSrcVar->GetName() ) ? true : false;
+		if ( nPatchType == PATCH_INSERT || (nPatchType == PATCH_REPLACE && bFound) || (nPatchType == PATCH_MISSING && !bFound) )
 		{
 			switch( pSrcVar->GetDataType() )
 			{
@@ -3327,7 +3328,7 @@ void InsertKeyValues( KeyValues& dst, KeyValues& src, bool bCheckForExistence, b
 					// Subkey. Recurse.
 					KeyValues *pNewDest = dst.FindKey( pSrcVar->GetName(), true );
 					Assert( pNewDest );
-					InsertKeyValues( *pNewDest, *pSrcVar, bCheckForExistence, true );
+					InsertKeyValues( *pNewDest, *pSrcVar, nPatchType, true );
 				}
 				break;
 			}
@@ -3341,7 +3342,7 @@ void InsertKeyValues( KeyValues& dst, KeyValues& src, bool bCheckForExistence, b
 		dst.SetInt( "__vmtpatchdummy", 1 );
 	}
 
-	if( bCheckForExistence )
+	if( nPatchType == PATCH_REPLACE )
 	{
 		for( KeyValues *pScan = dst.GetFirstTrueSubKey(); pScan; pScan = pScan->GetNextTrueSubKey() )
 		{
@@ -3351,7 +3352,7 @@ void InsertKeyValues( KeyValues& dst, KeyValues& src, bool bCheckForExistence, b
 			// make sure that this is a subkey.
 			if( pTmp->GetDataType() != KeyValues::TYPE_NONE )
 				continue;
-			InsertKeyValues( *pScan, *pTmp, bCheckForExistence );
+			InsertKeyValues( *pScan, *pTmp, nPatchType );
 		}
 	}
 }
@@ -3365,15 +3366,21 @@ void ApplyPatchKeyValues( KeyValues &keyValues, KeyValues &patchKeyValues )
 {
 	KeyValues *pInsertSection = patchKeyValues.FindKey( "insert" );
 	KeyValues *pReplaceSection = patchKeyValues.FindKey( "replace" );
+	KeyValues *pMissingSection = patchKeyValues.FindKey( "missing" );
 
 	if ( pInsertSection )
 	{
-		InsertKeyValues( keyValues, *pInsertSection, false );
+		InsertKeyValues( keyValues, *pInsertSection, PATCH_INSERT );
 	}
 
 	if ( pReplaceSection )
 	{
-		InsertKeyValues( keyValues, *pReplaceSection, true );
+		InsertKeyValues( keyValues, *pReplaceSection, PATCH_REPLACE );
+	}
+
+	if ( pMissingSection )
+	{
+		InsertKeyValues( keyValues, *pMissingSection, PATCH_MISSING );
 	}
 
 	// Could add other commands here, like "delete", "rename", etc.
@@ -3428,6 +3435,13 @@ void AccumulatePatchKeyValues( KeyValues &srcKeyValues, KeyValues &patchKeyValue
 		patchKeyValues.AddSubKey( pDestReplaceSection );
 	}
 
+	KeyValues *pDestMissingSection = patchKeyValues.FindKey( "missing" );
+	if ( pDestMissingSection == NULL )
+	{
+		pDestMissingSection = new KeyValues( "missing" );
+		patchKeyValues.AddSubKey( pDestMissingSection );
+	}
+
 	KeyValues *pSrcInsertSection = srcKeyValues.FindKey( "insert" );
 	if ( pSrcInsertSection )
 	{
@@ -3438,6 +3452,12 @@ void AccumulatePatchKeyValues( KeyValues &srcKeyValues, KeyValues &patchKeyValue
 	if ( pSrcReplaceSection )
 	{
 		MergeKeyValues( *pSrcReplaceSection, *pDestReplaceSection );
+	}
+
+	KeyValues *pSrcMissingSection = srcKeyValues.FindKey( "missing" );
+	if ( pSrcMissingSection )
+	{
+		MergeKeyValues( *pSrcMissingSection, *pDestMissingSection );
 	}
 }
 

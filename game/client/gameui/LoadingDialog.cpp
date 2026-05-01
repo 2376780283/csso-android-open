@@ -9,6 +9,8 @@
 #include "LoadingDialog.h"
 #include "EngineInterface.h"
 #include "IGameUIFuncs.h"
+#include "EngineInterface.h"
+#include "vstdlib/random.h"
 
 #include <vgui/IInput.h>
 #include <vgui/ISurface.h>
@@ -20,6 +22,7 @@
 #include <vgui_controls/Button.h>
 #include <vgui_controls/HTML.h>
 #include <vgui_controls/RichText.h>
+#include <vgui_controls/AnimationController.h>
 #include "tier0/icommandline.h"
 
 #include "GameUI_Interface.h"
@@ -30,11 +33,72 @@
 #include "iclientmode.h"
 #include "cs_shareddefs.h"
 #include <filesystem.h>
+#include "fmtstr.h"
+#include "tier1/strtools.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include <tier0/memdbgon.h>
 
 using namespace vgui;
+
+class CGradientProgressBar : public vgui::ContinuousProgressBar
+{
+    DECLARE_CLASS_SIMPLE( CGradientProgressBar, vgui::ContinuousProgressBar );
+    
+public:
+    CGradientProgressBar( Panel *parent, const char *panelName );
+    
+    void SetGradientColors( Color left, Color right );
+    
+protected:
+    virtual void PaintBackground();
+    virtual void Paint();
+    
+private:
+    Color m_LeftColor;
+    Color m_RightColor;
+};
+
+
+//-----------------------------------------------------------------------------
+// CGradientProgressBar Implementation
+//-----------------------------------------------------------------------------
+CGradientProgressBar::CGradientProgressBar( Panel *parent, const char *panelName ) 
+    : BaseClass( parent, panelName )
+{
+    m_LeftColor = Color( 0, 100, 200, 255 );
+    m_RightColor = Color( 100, 200, 255, 255 );
+}
+
+void CGradientProgressBar::SetGradientColors( Color left, Color right )
+{
+    m_LeftColor = left;
+    m_RightColor = right;
+}
+
+void CGradientProgressBar::PaintBackground()
+{
+    BaseClass::PaintBackground();
+}
+
+void CGradientProgressBar::Paint()
+{
+    int wide, tall;
+    GetSize( wide, tall );
+    surface()->DrawSetColor( GetBgColor() );
+    surface()->DrawFilledRect( 0, 0, wide, tall );
+    
+    float progress = GetProgress();
+    int progressWide = (int)( wide * progress );
+    
+    if ( progressWide > 0 )
+    {
+        surface()->DrawSetColor( m_LeftColor );
+        surface()->DrawFilledRectFade( 0, 0, progressWide, tall, 255, 0, true );
+        surface()->DrawSetColor( m_RightColor );
+        surface()->DrawFilledRectFade( 0, 0, progressWide, tall, 0, 255, true );
+    }
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
@@ -42,6 +106,7 @@ using namespace vgui;
 CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDialog")
 {
 	SetDeleteSelfOnClose(true);
+	SetProportional( true );
 
 	// Use console style
 	m_bConsoleStyle = GameUI().IsConsoleUI();
@@ -61,16 +126,22 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 	m_flSecondaryProgressStartTime = 0.0f;
 	m_bExtendedServerInfoLoaded = false;
 
-	m_pProgress = new ProgressBar( this, "Progress" );
-	m_pProgress2 = new ProgressBar( this, "Progress2" );
+    m_pTipPanel = new CLoadingTipPanel(this);
+	m_pProgress = new CGradientProgressBar( this, "Progress" );
+	m_pProgress2 = new ContinuousProgressBar( this, "Progress2" );
 	m_pInfoLabel = new Label( this, "InfoLabel", "" );
+	m_pGameModeIcon = new VectorImagePanel( this, "GameModeIcon" );
 	m_pCancelButton = new Button( this, "CancelButton", "#GameUI_Cancel" );
 	m_pTimeRemainingLabel = new Label( this, "TimeRemainingLabel", "" );
 	m_pMapNameLabel = new Label( this, "MapNameLabel", "" );
 	m_pMapImage = new ImagePanel( this, "MapImage" );
+	m_pMapImageBackground = new ImagePanel( this, "MapImageBackground" );
+	m_pMapIconImage = new ImagePanel( this, "MapIconImage" );
 	m_pGameModeNameLabel = new Label( this, "GameModeNameLabel", "" );
 	m_pGameModeDescriptionLabel = new Label( this, "GameModeDescriptionLabel", "" );
 	m_pCancelButton->SetCommand( "Cancel" );
+    m_pMapOverviewPanel = new vgui::Panel( this, "MapOverviewPanel" );
+    m_pMapOverviewPanel->SetVisible( false );
 
 	if ( ModInfo().IsSinglePlayerOnly() == false && m_bConsoleStyle == true )
 	{
@@ -98,6 +169,8 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 		m_pCancelButton->SetVisible( false );
 		m_pMapNameLabel->SetVisible( false );
 		m_pMapImage->SetVisible( false );
+		m_pMapImageBackground->SetVisible( false );
+		m_pMapIconImage->SetVisible( false );
 		m_pGameModeNameLabel->SetVisible( false );
 		m_pGameModeDescriptionLabel->SetVisible( false );
 
@@ -113,6 +186,8 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 		m_pCancelButton->SetBounds(330, 64, 72, 24);
 		m_pProgress2->SetVisible(false);
 	}
+    
+    SetupMapIcons();
 
 	ListenForGameEvent( "server_shutdown" );
 
@@ -128,7 +203,232 @@ CLoadingDialog::~CLoadingDialog()
 	{
 		vgui::surface()->RestrictPaintToSinglePanel( NULL );
 	}
+    
+    ClearMapIcons();
+    
+	if (m_pTipPanel)
+    {
+        m_pTipPanel->DeletePanel();
+        m_pTipPanel = NULL;
+    }
 }
+
+void CLoadingDialog::SetupMapIcons()
+{
+    const char *iconNames[] = {
+        "CTSpawn",
+        "TSpawn",
+        "Bomb",
+        "BombA",
+        "BombB",
+        "Hostage1",
+        "Hostage2",
+        "Hostage3",
+        "Hostage4",
+        "Hostage5",
+        "Hostage6"
+    };
+
+    for ( int i = 0; i < ARRAYSIZE(iconNames); i++ )
+    {
+        MapIconInfo info;
+        info.pIconPanel = new vgui::ImagePanel( m_pMapOverviewPanel, CFmtStr("Icon_%s", iconNames[i]) );
+        info.pIconPanel->SetShouldScaleImage( true );
+        info.pIconPanel->SetVisible( false );
+        info.x = 0.0f;
+        info.y = 0.0f;
+        info.bVisible = false;
+        
+        if ( Q_stristr( iconNames[i], "CTSpawn" ) )
+        {
+            info.pIconPanel->SetImage( "vgui/hud/icon_ct_spawn" );
+        }
+        else if ( Q_stristr( iconNames[i], "TSpawn" ) )
+        {
+            info.pIconPanel->SetImage( "vgui/hud/icon_t_spawn" );
+        }
+        else if ( Q_stristr( iconNames[i], "BombA" ) )
+        {
+            info.pIconPanel->SetImage( "vgui/hud/icon_bombsite_a" );
+        }
+        else if ( Q_stristr( iconNames[i], "BombB" ) )
+        {
+            info.pIconPanel->SetImage( "vgui/hud/icon_bombsite_b" );
+        }
+        else if ( Q_stristr( iconNames[i], "Bomb" ) && !Q_stristr( iconNames[i], "BombA" ) && !Q_stristr( iconNames[i], "BombB" ) )
+        {
+            info.pIconPanel->SetImage( "vgui/hud/icon_c4" );
+        }
+        else if ( Q_stristr( iconNames[i], "Hostage" ) )
+        {
+            info.pIconPanel->SetImage( "vgui/hud/icon_hostage" );
+        }
+        
+        m_MapIcons.Insert( iconNames[i], info );
+    }
+}
+
+void CLoadingDialog::ClearMapIcons()
+{
+    for ( int i = m_MapIcons.First(); i != m_MapIcons.InvalidIndex(); i = m_MapIcons.Next(i) )
+    {
+        MapIconInfo &info = m_MapIcons[i];
+        if ( info.pIconPanel )
+        {
+            info.pIconPanel->MarkForDeletion();
+            info.pIconPanel = NULL;
+        }
+    }
+    m_MapIcons.Purge();
+}
+
+void CLoadingDialog::LoadMapOverviewData( const char *mapName )
+{
+    if ( !mapName || !mapName[0] )
+        return;
+
+    char tempfile[MAX_PATH];
+    Q_snprintf( tempfile, sizeof(tempfile), "resource/overviews/%s.txt", mapName );
+
+    KeyValues *pMapKeyValues = new KeyValues( mapName );
+    if ( !pMapKeyValues->LoadFromFile( g_pFullFileSystem, tempfile, "GAME" ) )
+    {
+        DevMsg( 1, "CLoadingDialog::LoadMapOverviewData: couldn't load file %s.\n", tempfile );
+        pMapKeyValues->deleteThis();
+        return;
+    }
+
+    int iGameType = g_pGameTypes->GetCurrentGameType();
+    int iGameMode = g_pGameTypes->GetCurrentGameMode();
+
+    bool isGunGameProgressive = ( iGameType == CS_GameType_GunGame ) && 
+                                ( iGameMode == CS_GameMode::GunGame_Progressive );
+
+    bool bShowBomb = !isGunGameProgressive;
+    bool bShowHostages = !isGunGameProgressive;
+
+    SetIconPosition( "CTSpawn", 
+        pMapKeyValues->GetFloat( "CTSpawn_x" ), 
+        pMapKeyValues->GetFloat( "CTSpawn_y" ) );
+
+    SetIconPosition( "TSpawn", 
+        pMapKeyValues->GetFloat( "TSpawn_x" ), 
+        pMapKeyValues->GetFloat( "TSpawn_y" ) );
+
+    if ( bShowBomb )
+    {
+        SetIconPosition( "Bomb", 
+            pMapKeyValues->GetFloat( "bomb_x" ), 
+            pMapKeyValues->GetFloat( "bomb_y" ) );
+
+        SetIconPosition( "BombA", 
+            pMapKeyValues->GetFloat( "bombA_x" ), 
+            pMapKeyValues->GetFloat( "bombA_y" ) );
+
+        SetIconPosition( "BombB", 
+            pMapKeyValues->GetFloat( "bombB_x" ), 
+            pMapKeyValues->GetFloat( "bombB_y" ) );
+    }
+    else
+    {
+        SetIconPosition( "Bomb", 0.0f, 0.0f );
+        SetIconPosition( "BombA", 0.0f, 0.0f );
+        SetIconPosition( "BombB", 0.0f, 0.0f );
+    }
+    
+    if ( bShowHostages )
+    {
+        for ( int i = 1; i <= 6; i++ )
+        {
+            char iconName[32];
+            char keyX[32];
+            char keyY[32];
+            
+            Q_snprintf( iconName, sizeof(iconName), "Hostage%d", i );
+            Q_snprintf( keyX, sizeof(keyX), "Hostage%d_x", i );
+            Q_snprintf( keyY, sizeof(keyY), "Hostage%d_y", i );
+            
+            SetIconPosition( iconName, 
+                pMapKeyValues->GetFloat( keyX ), 
+                pMapKeyValues->GetFloat( keyY ) );
+        }
+    }
+    else
+    {
+        for ( int i = 1; i <= 6; i++ )
+        {
+            char iconName[32];
+            Q_snprintf( iconName, sizeof(iconName), "Hostage%d", i );
+            SetIconPosition( iconName, 0.0f, 0.0f );
+        }
+    }
+
+    pMapKeyValues->deleteThis();
+
+    PositionMapIcons();
+    
+    m_pMapOverviewPanel->SetVisible( true );
+    m_pMapOverviewPanel->SetAlpha(0);
+    vgui::GetAnimationController()->RunAnimationCommand(m_pMapOverviewPanel, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
+}
+
+void CLoadingDialog::SetIconPosition( const char *iconName, float x, float y )
+{
+    int index = m_MapIcons.Find( iconName );
+    if ( index == m_MapIcons.InvalidIndex() )
+        return;
+
+    MapIconInfo &info = m_MapIcons[index];
+    info.x = x;
+    info.y = y;
+    
+    // Если координаты 0,0 - скрываем иконку
+    if ( x == 0.0f && y == 0.0f )
+    {
+        info.bVisible = false;
+        if ( info.pIconPanel )
+        {
+            info.pIconPanel->SetVisible( false );
+        }
+    }
+    else
+    {
+        info.bVisible = true;
+        if ( info.pIconPanel )
+        {
+            info.pIconPanel->SetVisible( true );
+        }
+    }
+}
+
+void CLoadingDialog::PositionMapIcons()
+{
+    if ( !m_pMapImage || !m_pMapOverviewPanel )
+        return;
+
+    int mapX, mapY, mapWide, mapTall;
+    m_pMapImage->GetBounds( mapX, mapY, mapWide, mapTall );
+
+    int iconSize = scheme()->GetProportionalScaledValue( 16 );
+
+    m_pMapOverviewPanel->SetBounds( mapX, mapY, mapWide, mapTall );
+
+    for ( int i = m_MapIcons.First(); i != m_MapIcons.InvalidIndex(); i = m_MapIcons.Next(i) )
+    {
+        MapIconInfo &info = m_MapIcons[i];
+        if ( !info.pIconPanel || !info.bVisible )
+            continue;
+
+        int pixelX = (int)( info.x * mapWide ) - ( iconSize / 2 );
+        int pixelY = (int)( info.y * mapTall ) - ( iconSize / 2 );
+
+        info.pIconPanel->SetBounds( pixelX, pixelY, iconSize, iconSize );
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Updates the hint label with a new hint
+//-----------------------------------------------------------------------------
 
 void CLoadingDialog::FireGameEvent( IGameEvent* event )
 {
@@ -159,6 +459,8 @@ void CLoadingDialog::SetExtendedServerInfo( KeyValues* pExtendedServerInfo )
 		m_pMapNameLabel->SetText( g_pGameTypes->GetMapNameID( szMapName ) );
 
 		KeyValues* kvMapData = new KeyValues( szMapName );
+		KeyValues* kvMapbackgroundData = new KeyValues( szMapName );
+		KeyValues* kvMapIconData = new KeyValues( szMapName );
 		char tempfile[MAX_PATH];
 		Q_snprintf( tempfile, sizeof( tempfile ), "resource/overviews/%s.txt", szMapName );
 
@@ -166,6 +468,9 @@ void CLoadingDialog::SetExtendedServerInfo( KeyValues* pExtendedServerInfo )
 		{
 			Q_snprintf( tempfile, sizeof( tempfile ), "../%s", kvMapData->GetString( "material" ) ); // use map overview material
 			m_pMapImage->SetImage( tempfile );
+
+			m_pMapImage->SetAlpha(0);
+			vgui::GetAnimationController()->RunAnimationCommand(m_pMapImage, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
 		}
 
 		kvMapData->deleteThis();
@@ -174,6 +479,66 @@ void CLoadingDialog::SetExtendedServerInfo( KeyValues* pExtendedServerInfo )
 		m_pGameModeNameLabel->SetVisible( true );
 		m_pGameModeDescriptionLabel->SetText( g_pGameTypes->GetCurrentGameModeDescID() );
 		m_pGameModeDescriptionLabel->SetVisible( true );
+
+		char tempfile2[MAX_PATH];
+		Q_snprintf( tempfile2, sizeof( tempfile2 ), "resource/background/%s.txt", szMapName );
+
+		if ( kvMapbackgroundData->LoadFromFile( g_pFullFileSystem, tempfile2, "GAME" ) )
+		{
+			Q_snprintf( tempfile2, sizeof( tempfile2 ), "../%s", kvMapbackgroundData->GetString( "material" ) ); // use map overview material
+			m_pMapImageBackground->SetImage( tempfile2 );
+
+			m_pMapImageBackground->SetAlpha(0);
+			vgui::GetAnimationController()->RunAnimationCommand(m_pMapImageBackground, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
+		}
+
+		kvMapbackgroundData->deleteThis();
+
+		char tempfile3[MAX_PATH];
+		Q_snprintf( tempfile3, sizeof( tempfile3 ), "resource/icons/%s.txt", szMapName );
+
+		if ( kvMapIconData->LoadFromFile( g_pFullFileSystem, tempfile3, "GAME" ) )
+		{
+			Q_snprintf( tempfile3, sizeof( tempfile3 ), "../%s", kvMapIconData->GetString( "material" ) ); // use map overview material
+			m_pMapIconImage->SetImage( tempfile3 );
+
+			m_pMapIconImage->SetAlpha(0);
+			vgui::GetAnimationController()->RunAnimationCommand(m_pMapIconImage, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
+		}
+
+		int iGameType = g_pGameTypes->GetCurrentGameType();
+	    int iGameMode = g_pGameTypes->GetCurrentGameMode();
+
+		const char* pszCurrentGameMode = g_pGameTypes->GetGameModeFromInt( iGameType, iGameMode );
+		if ( pszCurrentGameMode )
+		{
+			char szIconPath[64];
+			V_snprintf( szIconPath, sizeof( szIconPath ), "materials/vgui/hud/svg/%s.svg", pszCurrentGameMode );
+			if ( !g_pFullFileSystem->FileExists( szIconPath ) )
+				m_pGameModeIcon->SetTexture( "materials/vgui/hud/svg/casual.svg" );
+			else
+				m_pGameModeIcon->SetTexture( szIconPath );
+			
+			m_pGameModeIcon->SetAlpha(0);
+			vgui::GetAnimationController()->RunAnimationCommand(m_pGameModeIcon, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
+		}
+		else
+		{
+			m_pGameModeIcon->SetTexture( "materials/vgui/hud/svg/casual.svg" );
+		}
+        
+        LoadMapOverviewData( szMapName );
+
+		kvMapIconData->deleteThis();
+
+		m_pMapNameLabel->SetAlpha(0);
+		vgui::GetAnimationController()->RunAnimationCommand(m_pMapNameLabel, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
+
+		m_pGameModeNameLabel->SetAlpha(0);
+		vgui::GetAnimationController()->RunAnimationCommand(m_pGameModeNameLabel, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
+
+		m_pGameModeDescriptionLabel->SetAlpha(0);
+		vgui::GetAnimationController()->RunAnimationCommand(m_pGameModeDescriptionLabel, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
 	}
 }
 
@@ -182,8 +547,20 @@ void CLoadingDialog::ResetExtendedServerInfo()
 	m_bExtendedServerInfoLoaded = false;
 	m_pMapNameLabel->SetText( "#GameUI_Loading" );
 	m_pMapImage->SetImage( "map_blank" );
+	m_pMapImageBackground->SetImage( "map_blank" );
+	m_pMapIconImage->SetImage( "map_blank" );
 	m_pGameModeNameLabel->SetVisible( false );
 	m_pGameModeDescriptionLabel->SetVisible( false );
+    
+    m_pMapOverviewPanel->SetVisible( false );
+    for ( int i = m_MapIcons.First(); i != m_MapIcons.InvalidIndex(); i = m_MapIcons.Next(i) )
+    {
+        MapIconInfo &info = m_MapIcons[i];
+        if ( info.pIconPanel )
+        {
+            info.pIconPanel->SetVisible( false );
+        }
+    }
 }
 
 void CLoadingDialog::PaintBackground()
@@ -253,8 +630,12 @@ void CLoadingDialog::Open()
 		SetTitle( "#GameUI_Loading", true );
 	}
 
+
 	HideOtherDialogs( true );
 	BaseClass::Activate();
+
+	SetAlpha(0);
+	vgui::GetAnimationController()->RunAnimationCommand(this, "Alpha", 255.0f, 0.0f, 0.4f, vgui::AnimationController::INTERPOLATOR_LINEAR);
 
 	if ( !m_bConsoleStyle )
 	{
@@ -268,6 +649,10 @@ void CLoadingDialog::Open()
 		m_pCancelButton->SetText("#GameUI_Cancel");
 		m_pCancelButton->SetCommand("Cancel");
 	}
+	if (m_pTipPanel)
+        {
+            m_pTipPanel->SetVisible(true);
+        }
 }
 
 
@@ -292,6 +677,8 @@ void CLoadingDialog::SetupControlSettingsForErrorDisplay( const char *settingsFi
 	m_pProgress->SetVisible(false);
 	m_pMapNameLabel->SetVisible(false);
 	m_pMapImage->SetVisible(false);
+	m_pMapImageBackground->SetVisible(false);
+	m_pMapIconImage->SetVisible(false);
 	m_pGameModeNameLabel->SetVisible(false);
 	m_pGameModeDescriptionLabel->SetVisible(false);
 
@@ -492,7 +879,7 @@ void CLoadingDialog::OnThink()
 		{
 			m_pTimeRemainingLabel->SetText("complete");
 		}
-		else if (ProgressBar::ConstructTimeRemainingString(unicode, sizeof(unicode), m_flSecondaryProgressStartTime, (float)system()->GetFrameTime(), m_flSecondaryProgress, m_flLastSecondaryProgressUpdateTime, true))
+		else if (ContinuousProgressBar::ConstructTimeRemainingString(unicode, sizeof(unicode), m_flSecondaryProgressStartTime, (float)system()->GetFrameTime(), m_flSecondaryProgress, m_flLastSecondaryProgressUpdateTime, true))
 		{
 			m_pTimeRemainingLabel->SetText(unicode);
 		}
@@ -501,10 +888,12 @@ void CLoadingDialog::OnThink()
 			m_pTimeRemainingLabel->SetText("");
 		}
 	}
-
-	SetAlpha( 255 );
+	
+	if (!m_bConsoleStyle && m_pTipPanel)
+	{
+	    m_pTipPanel->NextTip();
+	}
 }
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -562,6 +951,17 @@ void CLoadingDialog::PerformLayout()
 
 		SetPos( x, y );
 	}
+	
+	if (!m_bConsoleStyle)
+    {
+        vgui::HScheme scheme = vgui::scheme()->GetScheme("ClientScheme");
+        vgui::IScheme *pScheme = vgui::scheme()->GetIScheme(scheme);
+    }
+    
+    if ( m_pMapOverviewPanel && m_pMapOverviewPanel->IsVisible() )
+    {
+        PositionMapIcons();
+    }
 	
 	BaseClass::PerformLayout();
 	
@@ -716,6 +1116,184 @@ void CLoadingDialog::OnKeyCodePressed(KeyCode code)
 		BaseClass::OnKeyCodePressed(code);
 	}
 }
+
+ConVar ui_loading_tip_refresh( "ui_loading_tip_refresh", "5", FCVAR_DEVELOPMENTONLY );
+ConVar ui_loading_tip_f1( "ui_loading_tip_f1", "0.05", FCVAR_DEVELOPMENTONLY );
+ConVar ui_loading_tip_f2( "ui_loading_tip_f2", "0.40", FCVAR_DEVELOPMENTONLY );
+
+//--------------------------------------------------------------------------------------------------------
+CLoadingTipPanel::CLoadingTipPanel( Panel *pParent ) : EditablePanel( pParent, "loadingtippanel" )
+{
+	m_flLastTipTime = 0.f;
+	m_iCurrentTip = 0;
+	m_pTipIcon = NULL;
+
+	m_smearColor = Color( 0, 0, 0, 255 );
+
+	SetupTips();
+}
+
+//--------------------------------------------------------------------------------------------------------
+CLoadingTipPanel::~CLoadingTipPanel()
+{
+}
+
+//--------------------------------------------------------------------------------------------------------
+void CLoadingTipPanel::ApplySchemeSettings( vgui::IScheme *pScheme )
+{
+	BaseClass::ApplySchemeSettings( pScheme );
+
+	m_smearColor = pScheme->GetColor( "Frame.SmearColor", Color( 0, 0, 0, 225 ) );
+
+	ReloadScheme();
+}
+
+//--------------------------------------------------------------------------------------------------------
+void CLoadingTipPanel::ReloadScheme( void )
+{
+	LoadControlSettings( "Resource/UI/loadingtippanel.res" );
+
+	m_pTipIcon = dynamic_cast< vgui::ImagePanel* >( FindChildByName( "TipIcon" ) );
+
+	NextTip();
+}
+
+//--------------------------------------------------------------------------------------------------------
+void CLoadingTipPanel::SetupTips( void )
+{
+	KeyValues *pKV = new KeyValues( "Tips" );
+	KeyValues::AutoDelete autodelete( pKV );
+	if ( !pKV->LoadFromFile( g_pFullFileSystem, "scripts/tips.txt", "GAME" ) )
+	{
+		AssertMsg( false, "failed to load tips!" );
+		return;
+	}
+
+	for ( KeyValues *pKey = pKV->FindKey( "SurvivorTips" )->GetFirstSubKey(); pKey; pKey = pKey->GetNextKey() )
+	{
+		sTipInfo info;
+		V_strncpy( info.szTipTitle, "", MAX_TIP_LENGTH );
+		V_strncpy( info.szTipString, pKey->GetName(), MAX_TIP_LENGTH );
+		V_strncpy( info.szTipImage, "achievements/ACH_SURVIVE_BRIDGE", MAX_TIP_LENGTH );
+		m_Tips.AddToTail( info );
+	}
+#ifdef ACHIEVEMENT
+	TitleAchievementsDescription_t const *desc = g_pMatchFramework->GetMatchTitle()->DescribeTitleAchievements();
+	for ( ; desc->m_szAchievementName; ++desc )
+	{
+		sTipInfo info;
+		V_snprintf( info.szTipTitle, MAX_TIP_LENGTH, "#%s_NAME", desc->m_szAchievementName );
+		V_snprintf( info.szTipString, MAX_TIP_LENGTH, "#%s_DESC", desc->m_szAchievementName );
+		V_snprintf( info.szTipImage, MAX_TIP_LENGTH, "achievements/%s", desc->m_szAchievementName );
+		m_Tips.AddToTail( info );
+	}
+#endif
+}
+
+//--------------------------------------------------------------------------------------------------------
+void CLoadingTipPanel::NextTip( void )
+{
+	if ( !IsEnabled() )
+		return;
+
+	if ( !m_Tips.Count() )
+		return;
+
+	if ( !m_flLastTipTime )
+	{
+		// Initialize timer on first render
+		m_flLastTipTime = Plat_FloatTime();
+		return;
+	}
+
+	if ( Plat_FloatTime() - m_flLastTipTime < ui_loading_tip_refresh.GetFloat() )
+		return;
+
+	m_flLastTipTime = Plat_FloatTime();
+
+	m_iCurrentTip = RandomInt( 0, m_Tips.Count() - 1 );
+	if ( !m_Tips.IsValidIndex( m_iCurrentTip ) )
+		return;
+
+	sTipInfo info = m_Tips[m_iCurrentTip];
+
+	if ( m_pTipIcon )
+	{
+		m_pTipIcon->SetImage( info.szTipImage );
+	}
+	SetControlString( "TipTitle", info.szTipTitle );
+	SetControlString( "TipText", info.szTipString );
+
+	// Set our control visible
+	SetVisible( true );
+}
+
+
+#define TOP_BORDER_HEIGHT		21
+#define BOTTOM_BORDER_HEIGHT	21
+int CLoadingTipPanel::DrawSmearBackgroundFade( int x0, int y0, int x1, int y1 )
+{
+	int wide = x1 - x0;
+	int tall = y1 - y0;
+
+	int topTall = scheme()->GetProportionalScaledValue( TOP_BORDER_HEIGHT );
+	int bottomTall = scheme()->GetProportionalScaledValue( BOTTOM_BORDER_HEIGHT );
+
+	float f1 = ui_loading_tip_f1.GetFloat();
+	float f2 = ui_loading_tip_f2.GetFloat();
+
+	topTall  = 1.00f * topTall;
+	bottomTall = 1.00f * bottomTall;
+
+	int middleTall = tall - ( topTall + bottomTall );
+	if ( middleTall < 0 )
+	{
+		middleTall = 0;
+	}
+
+	surface()->DrawSetColor( m_smearColor );
+
+	y0 += topTall;
+
+	if ( middleTall )
+	{
+		// middle
+		surface()->DrawFilledRectFade( x0, y0, x0 + f1*wide, y0 + middleTall, 0, 255, true );
+		surface()->DrawFilledRectFade( x0 + f1*wide, y0, x0 + f2*wide, y0 + middleTall, 255, 255, true );
+		surface()->DrawFilledRectFade( x0 + f2*wide, y0, x0 + wide, y0 + middleTall, 255, 0, true );
+		y0 += middleTall;
+	}
+
+	return topTall + middleTall + bottomTall;
+}
+
+//--------------------------------------------------------------------------------------------------------
+void CLoadingTipPanel::PaintBackground( void )
+{
+	BaseClass::PaintBackground();
+
+	DrawSmearBackgroundFade( 
+		0, 
+		-scheme()->GetProportionalScaledValue( 20 ), 
+		GetWide(), 
+		GetTall() ); 
+
+}
+
+/*void PrecacheLoadingTipIcons()
+{
+	TitleAchievementsDescription_t const *desc = g_pMatchFramework->GetMatchTitle()->DescribeTitleAchievements();
+	for ( ; desc->m_szAchievementName; ++desc )
+	{
+		CFmtStr imageString( "vgui/achievements/%s", desc->m_szAchievementName );
+		int nImageId = vgui::surface()->DrawGetTextureId( imageString );
+		if ( nImageId == -1 )
+		{
+			nImageId = vgui::surface()->CreateNewTextureID();
+			vgui::surface()->DrawSetTextureFile( nImageId, imageString, true, false );	
+		}
+	}
+}*/
 
 //-----------------------------------------------------------------------------
 // Purpose: Singleton accessor

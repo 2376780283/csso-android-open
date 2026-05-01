@@ -185,6 +185,23 @@ public:
 	// Flashlight
 	void	Flashlight( void );
 	void	UpdateFlashlight( void );
+    void	TurnOffFlashlight( void );	// TERROR
+    virtual const char *GetFlashlightTextureName( void ) const { return NULL; } // TERROR
+	virtual float GetFlashlightFOV( void ) const { return 0.0f; } // TERROR
+	virtual float GetFlashlightFarZ( void ) const { return 0.0f; } // TERROR
+	virtual float GetFlashlightLinearAtten( void ) const { return 0.0f; } // TERROR
+	virtual bool CastsFlashlightShadows( void ) const { return true; } // TERROR
+	virtual void GetFlashlightOffset( const Vector &vecForward, const Vector &vecRight, const Vector &vecUp, Vector *pVecOffset ) const;
+	Vector	m_vecFlashlightOrigin;
+	Vector	m_vecFlashlightForward;
+	Vector	m_vecFlashlightUp;
+	Vector	m_vecFlashlightRight;
+    
+    // Player flashlight dynamic light pointers
+	bool			m_bFlashlightEnabled;
+    
+    //Bone setup for legs????
+    bool SetupBones(matrix3x4_t *pBoneToWorld, int nMaxBones, int boneMask, float currentTime);
 
 	// Weapon selection code
 	virtual bool				IsAllowedToSwitchWeapons( void ) { return !IsObserver(); }
@@ -671,6 +688,8 @@ private:
 	StepSoundCache_t		m_StepSoundCache[ 2 ];
 
 public:
+    
+    CUtlReference< CNewParticleEffect > m_speechVOIPParticleEffect;
 	// HACK: Only used for cstrike players, making virtual here because a ton of base player code needs to know about that state. 
 	enum eObserverInterpState
 	{
@@ -685,6 +704,8 @@ public:
 
 	float GetLaggedMovementValue( void ){ return m_flLaggedMovementValue;	}
 	bool  ShouldGoSouth( Vector vNPCForward, Vector vNPCRight ); //Such a bad name.
+    
+    virtual	C_BaseCombatCharacter *ActivePlayerCombatCharacter( void ) { return this; }
 
 	void SetOldPlayerZ( float flOld ) { m_flOldPlayerZ = flOld;	}
 

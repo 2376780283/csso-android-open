@@ -41,6 +41,7 @@ enum CommandBufferCommand_t
 	CBCMD_SETPIXELSHADERSTATEAMBIENTLIGHTCUBE = 262,		// int cmd, int regdest
 	CBCMD_SETAMBIENTCUBEDYNAMICSTATEVERTEXSHADER = 263,		// int cmd
 	CBCMD_SET_DEPTH_FEATHERING_CONST = 264,					// int cmd, int constant register, float blend scale
+	CBCMD_SETPIXELSHADERFOGPARAMS_CSGO = 265,				// int cmd, int regdest
 
 	// texture binding
 	CBCMD_BIND_STANDARD_TEXTURE = 512,						// cmd, sampler, texture id

@@ -60,6 +60,8 @@ public:
 	virtual bool		IsUsingGraphics() const;
 	virtual bool		CanUseEditorMaterials() const;
 
+	virtual void AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics );
+
 	// Methods of IShaderSystemInternal
 	virtual void		Init();
 	virtual void		Shutdown();
@@ -682,6 +684,13 @@ void CShaderSystem::SetupShaderDictionary( int nShaderDLLIndex )
 	// I'm not sure if that makes this system any less secure than it already is
 	int i;
 	ShaderDLLInfo_t &info = m_ShaderDLLs[nShaderDLLIndex];
+
+	for ( int i = 0; i < info.m_pShaderDLL->ShaderComboSemanticsCount(); i++ )
+	{
+		const ShaderComboSemantics_t *pSemantics = info.m_pShaderDLL->GetComboSemantics( i );
+		g_pShaderAPI->AddShaderComboInformation( pSemantics );
+	}
+
 	int nCount = info.m_pShaderDLL->ShaderCount();
 	for ( i = 0; i < nCount; ++i )
 	{
@@ -2053,6 +2062,11 @@ void CShaderSystem::LoadCubeMap( IMaterialVar **ppParams, IMaterialVar *pTexture
 
 		pTextureVar->SetTextureValue( pTexture );
 	}
+}
+
+void CShaderSystem::AddShaderComboInformation( const ShaderComboSemantics_t *pSemantics )
+{
+	g_pShaderAPI->AddShaderComboInformation( pSemantics );
 }
 
 

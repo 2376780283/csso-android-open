@@ -101,7 +101,7 @@ public:
 	virtual void	EnumerateEntities( const Vector &vecAbsMins, const Vector &vecAbsMaxs, IEntityEnumerator *pEnumerator );
 
 	// FIXME: Different versions for client + server. Eventually we need to make these go away
-	virtual void HandleEntityToCollideable( IHandleEntity *pHandleEntity, ICollideable **ppCollide, const char **ppDebugName ) = 0;
+	virtual ICollideable *HandleEntityToCollideable( IHandleEntity *pHandleEntity ) = 0;
 	virtual ICollideable *GetWorldCollideable() = 0;
 
 	// Traces a ray against a particular edict
@@ -124,6 +124,8 @@ public:
 
 	// Walks bsp to find the leaf containing the specified point
 	virtual int GetLeafContainingPoint( const Vector &ptTest );
+
+	virtual const char* GetDebugName( IHandleEntity* pHandleEntity ) = 0;
 
 private:
 	// FIXME: Different versions for client + server. Eventually we need to make these go away
@@ -168,7 +170,8 @@ private:
 class CEngineTraceServer : public CEngineTrace
 {
 private:
-	virtual void HandleEntityToCollideable( IHandleEntity *pEnt, ICollideable **ppCollide, const char **ppDebugName );
+	virtual ICollideable* HandleEntityToCollideable( IHandleEntity *pEnt );
+	virtual const char* GetDebugName( IHandleEntity* pHandleEntity );
 	virtual void SetTraceEntity( ICollideable *pCollideable, trace_t *pTrace );
 	virtual int SpatialPartitionMask() const;
 	virtual int SpatialPartitionTriggerMask() const;
@@ -183,7 +186,8 @@ public:
 class CEngineTraceClient : public CEngineTrace
 {
 private:
-	virtual void HandleEntityToCollideable( IHandleEntity *pEnt, ICollideable **ppCollide, const char **ppDebugName );
+	virtual ICollideable* HandleEntityToCollideable( IHandleEntity *pEnt );
+	virtual const char* GetDebugName( IHandleEntity* pHandleEntity );
 	virtual void SetTraceEntity( ICollideable *pCollideable, trace_t *pTrace );
 	virtual int SpatialPartitionMask() const;
 	virtual int SpatialPartitionTriggerMask() const;
@@ -337,9 +341,7 @@ public:
 
 	IterationRetval_t EnumElement( IHandleEntity *pHandleEntity )
 	{
-		ICollideable *pCollide;
-		const char *pDbgName;
-		m_pEngineTrace->HandleEntityToCollideable( pHandleEntity, &pCollide, &pDbgName );
+		ICollideable *pCollide = m_pEngineTrace->HandleEntityToCollideable( pHandleEntity );
 		if (!pCollide)
 			return ITERATION_CONTINUE;
 
@@ -1275,55 +1277,59 @@ bool CEngineTrace::ClipTraceToTrace( trace_t &clipTrace, trace_t *pFinalTrace )
 //-----------------------------------------------------------------------------
 // Converts a user id to a collideable + username
 //-----------------------------------------------------------------------------
-void CEngineTraceServer::HandleEntityToCollideable( IHandleEntity *pHandleEntity, ICollideable **ppCollide, const char **ppDebugName )
+ICollideable *CEngineTraceServer::HandleEntityToCollideable( IHandleEntity *pHandleEntity )
 {
-	*ppCollide = StaticPropMgr()->GetStaticProp( pHandleEntity );
-	if ( *ppCollide	)
-	{
-		*ppDebugName = "static prop";
-		return;
-	}
+	ICollideable* pCollideable = StaticPropMgr()->GetStaticProp( pHandleEntity );
+	if ( pCollideable )
+		return pCollideable;
 
-	IServerUnknown *pServerUnknown = static_cast<IServerUnknown*>(pHandleEntity);
-	if ( !pServerUnknown || ! pServerUnknown->GetNetworkable())
+	IServerUnknown* pServerUnknown = static_cast< IServerUnknown* >( pHandleEntity );
+	if ( pServerUnknown )
 	{
-		*ppCollide = NULL;
-		*ppDebugName = "<null>";
-		return;
+		pCollideable = pServerUnknown->GetCollideable();
 	}
+	return pCollideable;
+}
 
-	*ppCollide = pServerUnknown->GetCollideable();
-	*ppDebugName = pServerUnknown->GetNetworkable()->GetClassName();
+const char* CEngineTraceServer::GetDebugName( IHandleEntity* pHandleEntity )
+{
+	if ( StaticPropMgr()->IsStaticProp( pHandleEntity ) )
+		return "static prop";
+
+	IServerUnknown* pServerUnknown = static_cast< IServerUnknown* >( pHandleEntity );
+	if ( !pServerUnknown || !pServerUnknown->GetNetworkable() )
+		return "<null>";
+
+	return pServerUnknown->GetNetworkable()->GetClassName();
 }
 
 #ifndef SWDS
-void CEngineTraceClient::HandleEntityToCollideable( IHandleEntity *pHandleEntity, ICollideable **ppCollide, const char **ppDebugName )
+ICollideable *CEngineTraceClient::HandleEntityToCollideable( IHandleEntity *pHandleEntity )
 {
-	*ppCollide = StaticPropMgr()->GetStaticProp( pHandleEntity );
-	if ( *ppCollide	)
+	ICollideable *pCollideable = StaticPropMgr()->GetStaticProp( pHandleEntity );
+	if ( pCollideable )
+		return pCollideable;
+	IClientUnknown *pUnk = static_cast<IClientUnknown*>(pHandleEntity);
+	if ( pUnk )
 	{
-		*ppDebugName = "static prop";
-		return;
+		pCollideable = pUnk->GetCollideable();
 	}
 
-	IClientUnknown *pUnk = static_cast<IClientUnknown*>(pHandleEntity);
-	if ( !pUnk )
-	{
-		*ppCollide = NULL;
-		*ppDebugName = "<null>";
-		return;
-	}
-	
-	*ppCollide = pUnk->GetCollideable();
-	*ppDebugName = "client entity";
-	IClientNetworkable *pNetwork = pUnk->GetClientNetworkable();
-	if (pNetwork)
-	{
-		if (pNetwork->GetClientClass())
-		{
-			*ppDebugName = pNetwork->GetClientClass()->m_pNetworkName;
-		}
-	}
+	return pCollideable;
+}
+
+const char* CEngineTraceClient::GetDebugName( IHandleEntity* pHandleEntity )
+{
+	if ( StaticPropMgr()->IsStaticProp( pHandleEntity ) )
+		return "static prop";
+
+	IClientUnknown* pUnk = static_cast< IClientUnknown* >( pHandleEntity );
+	return "<null>";
+
+	IClientNetworkable* pNetwork = pUnk->GetClientNetworkable();
+	if ( pNetwork && pNetwork->GetClientClass() )
+		return pNetwork->GetClientClass()->m_pNetworkName;
+	return "client entity";
 }
 #endif
 
@@ -1476,18 +1482,17 @@ void CEngineTrace::TraceRayAgainstLeafAndEntityList( const Ray_t &ray, CTraceLis
 
 	trace_t trace;
 	ICollideable *pCollideable;
-	const char *pDebugName;
 	for ( int iEntity = 0; iEntity < traceData.m_nEntityCount; ++iEntity )
 	{
 		// Generate a collideable.
 		IHandleEntity *pHandleEntity = traceData.m_aEntityList[iEntity];
-		HandleEntityToCollideable( pHandleEntity, &pCollideable, &pDebugName );
+		pCollideable = HandleEntityToCollideable( pHandleEntity );
 
 		// Check for error condition.
 		if ( !IsSolid( pCollideable->GetSolid(), pCollideable->GetSolidFlags() ) )
 		{
 			Assert( 0 );
-			Msg("%s in solid list (not solid)\n", pDebugName );
+			Msg("%s in solid list (not solid)\n", GetDebugName(pHandleEntity) );
 			continue;
 		}
 
@@ -1613,23 +1618,23 @@ CON_COMMAND_EXTERN( ray_bench, RayBench, "Time the rays" )
 				{
 
 					VPROF("IntersectStaticProps");
-				for ( int i = 0; i < nCount; ++i )
-				{
-					// Generate a collideable
-					IHandleEntity *pHandleEntity = enumerator.m_EntityHandles[i];
+					for ( int i = 0; i < nCount; ++i )
+					{
+						// Generate a collideable
+						IHandleEntity *pHandleEntity = enumerator.m_EntityHandles[i];
 
-					if ( !StaticPropMgr()->IsStaticProp( pHandleEntity ) )
-						continue;
-					if ( entityRay.m_IsRay )
-						rayVsProp++;
-					else
-						boxVsProp++;
-					s_EngineTraceServer.HandleEntityToCollideable( pHandleEntity, &pCollideable, &pDebugName );
-					s_EngineTraceServer.ClipRayToCollideable( entityRay, MASK_SOLID, pCollideable, &tr );
+						if ( !StaticPropMgr()->IsStaticProp( pHandleEntity ) )
+							continue;
+						if ( entityRay.m_IsRay )
+							rayVsProp++;
+						else
+							boxVsProp++;
+						pCollideable = s_EngineTraceServer.HandleEntityToCollideable( pHandleEntity );
+						s_EngineTraceServer.ClipRayToCollideable( entityRay, MASK_SOLID, pCollideable, &tr );
 
-					// Make sure the ray is always shorter than it currently is
-					s_EngineTraceServer.ClipTraceToTrace( tr, &trace );
-				}
+						// Make sure the ray is always shorter than it currently is
+						s_EngineTraceServer.ClipTraceToTrace( tr, &trace );
+					}
 				}
 			}
 			if ( trace.DidHit() )
@@ -1767,19 +1772,18 @@ void CEngineTrace::TraceRay( const Ray_t &ray, unsigned int fMask, ITraceFilter 
 
 	trace_t tr;
 	ICollideable *pCollideable;
-	const char *pDebugName;
 	int nCount = enumerator.Count();
 	for ( int i = 0; i < nCount; ++i )
 	{
 		// Generate a collideable
 		IHandleEntity *pHandleEntity = enumerator.m_EntityHandles[i];
-		HandleEntityToCollideable( pHandleEntity, &pCollideable, &pDebugName );
+		pCollideable = HandleEntityToCollideable( pHandleEntity );
 
 		// Check for error condition
 		if ( IsPC() && IsDebug() && !IsSolid( pCollideable->GetSolid(), pCollideable->GetSolidFlags() ) )
 		{
 			Assert( 0 );
-			Msg( "%s in solid list (not solid)\n", pDebugName );
+			Msg( "%s in solid list (not solid)\n", GetDebugName(pHandleEntity) );
 			continue;
 		}
 

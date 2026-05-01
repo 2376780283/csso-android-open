@@ -415,8 +415,11 @@ IMPLEMENT_SERVERCLASS_ST( CCSPlayer, DT_CSPlayer )
 	SendPropInt( SENDINFO( m_iThrowGrenadeCounter ), THROWGRENADE_COUNTER_BITS, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_iAddonBits ), NUM_ADDON_BITS, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_iPrimaryAddon ), 8, SPROP_UNSIGNED ),
+    SendPropInt( SENDINFO( m_iPrimaryAddonPaintKit ), 8, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_iSecondaryAddon ), 8, SPROP_UNSIGNED ),
+    SendPropInt( SENDINFO( m_iSecondaryAddonPaintKit ), 8, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_iKnifeAddon ), 8, SPROP_UNSIGNED ),
+    SendPropInt( SENDINFO( m_iKnifeAddonPaintKit ), 8, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_iPlayerState ), Q_log2( NUM_PLAYER_STATES )+1, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_iAccount ), 16, SPROP_UNSIGNED ),
 	SendPropBool( SENDINFO( m_bInBombZone ) ),
@@ -478,9 +481,12 @@ IMPLEMENT_SERVERCLASS_ST( CCSPlayer, DT_CSPlayer )
 	SendPropInt( SENDINFO( m_iLoadoutSlotGlovesCT ) ),
 	SendPropInt( SENDINFO( m_iLoadoutSlotGlovesT ) ),
 	SendPropInt( SENDINFO( m_iLoadoutSlotKnifeWeaponCT ) ),
+    SendPropInt( SENDINFO( m_iLoadoutSlotKnifeWeaponSkinCT ) ),
 	SendPropInt( SENDINFO( m_iLoadoutSlotKnifeWeaponT ) ),
+    SendPropInt( SENDINFO( m_iLoadoutSlotKnifeWeaponSkinT ) ),
 	SendPropInt( SENDINFO( m_iLoadoutSlotAgentCT ) ),
 	SendPropInt( SENDINFO( m_iLoadoutSlotAgentT ) ),
+    SendPropInt( SENDINFO( m_iGlovePaintKitID ) ),
 	SendPropEHandle( SENDINFO( m_hLoadoutGloves ) ),
 
 
@@ -706,9 +712,12 @@ CCSPlayer::CCSPlayer()
 	m_iLoadoutSlotAgentCT = 0;
 	m_iLoadoutSlotAgentT = 0;
 	m_iLoadoutSlotKnifeWeaponCT = 0;
+    m_iLoadoutSlotKnifeWeaponSkinCT = 0;
 	m_iLoadoutSlotKnifeWeaponT = 0;
+    m_iLoadoutSlotKnifeWeaponSkinT = 0;
 	m_iLoadoutSlotGlovesCT = 0;
 	m_iLoadoutSlotGlovesT = 0;
+    m_iGlovePaintKitID = 0;
 	m_bLoadoutStatTrak = false;
 	m_iLoadoutMusic = 0;
 }
@@ -908,7 +917,9 @@ void CCSPlayer::Precache()
 	PrecacheScriptSound( "Player.PickupWeapon" );
 	PrecacheScriptSound( "Player.PickupWeaponSilent" );
 	PrecacheScriptSound( "Player.DamageHelmet" );
+    PrecacheScriptSound( "Player.DamageHelmetFeedback" );
 	PrecacheScriptSound( "Player.DamageHeadShot" );
+    PrecacheScriptSound( "Player.DamageHeadShotFeedback" );
 	PrecacheScriptSound( "Default.Land" );
 	PrecacheScriptSound( "Flesh.BulletImpact" );
 	PrecacheScriptSound( "Player.DamageKevlar" );
@@ -1422,6 +1433,7 @@ void CCSPlayer::Spawn()
 		{
 			m_iLoadoutSlotGlovesCT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( edict() ), "loadout_slot_gloves_ct" ) );
 			m_iLoadoutSlotGlovesT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( edict() ), "loadout_slot_gloves_t" ) );
+            m_iGlovePaintKitID = CSLoadout()->GetGlovesSkinForPlayer( this, GetTeamNumber() );
 		}
 		m_bNeedToChangeGloves = false;
 	}
@@ -1658,6 +1670,7 @@ void CCSPlayer::Spawn()
 	if ( State_Get() == STATE_ACTIVE )
 	{
 		UpdateGloves();
+        m_iGlovePaintKitID = CSLoadout()->GetGlovesSkinForPlayer( this, GetTeamNumber() );
 	}
 }
 
@@ -1978,6 +1991,7 @@ void CCSPlayer::GiveDefaultItems()
 void CCSPlayer::UpdateGloves()
 {
 	int nGlovesID = CSLoadout()->GetGlovesForPlayer( this, GetTeamNumber() );
+    int nGlovesPaintKitID = CSLoadout()->GetGlovesSkinForPlayer( this, GetTeamNumber() );
 	if ( nGlovesID == 0 )
 	{
 		RemoveGloves();
@@ -1994,9 +2008,10 @@ void CCSPlayer::UpdateGloves()
 	{
 		if ( m_hLoadoutGloves != NULL )
 		{
-			if ( m_hLoadoutGloves->GetGloveID() != nGlovesID )
+			if ( m_hLoadoutGloves->GetGloveID() != nGlovesID || m_hLoadoutGloves->GetGlovePaintKit() != nGlovesPaintKitID )
 			{
 				m_hLoadoutGloves->SetGloveID( nGlovesID );
+                m_hLoadoutGloves->SetGlovePaintKit( nGlovesPaintKitID );
 				m_hLoadoutGloves->UpdateGlovesModel();
 			}
 			return;
@@ -2006,6 +2021,7 @@ void CCSPlayer::UpdateGloves()
 		if ( pGloves )
 		{
 			pGloves->SetGloveID( nGlovesID );
+            pGloves->SetGlovePaintKit( nGlovesPaintKitID );
 			pGloves->Equip( this );
 
 			m_hLoadoutGloves = pGloves;
@@ -2021,6 +2037,7 @@ void CCSPlayer::RemoveGloves()
 {
 	if ( m_hLoadoutGloves.Get() )
 	{
+        m_hLoadoutGloves->SetGlovePaintKit( 0 );
 		m_hLoadoutGloves->UnEquip();
 		UTIL_Remove( m_hLoadoutGloves );
 	}
@@ -3093,6 +3110,7 @@ void CCSPlayer::UpdateAddonBits()
 	{
 		iNewBits |= ADDON_PRIMARY;
 		m_iPrimaryAddon = weapon->GetWeaponID();
+        m_iPrimaryAddonPaintKit = weapon->GetPaintKit();
 	}
 	else
 	{
@@ -3108,6 +3126,7 @@ void CCSPlayer::UpdateAddonBits()
 			iNewBits |= ADDON_PISTOL2;
 		}
 		m_iSecondaryAddon = weapon->GetWeaponID();
+        m_iSecondaryAddonPaintKit = weapon->GetPaintKit();
 	}
 	else if ( weapon && weapon->GetWeaponID() == WEAPON_ELITE )
 	{
@@ -3115,6 +3134,7 @@ void CCSPlayer::UpdateAddonBits()
 		// to display the empty holster.
 		iNewBits |= ADDON_PISTOL2;
 		m_iSecondaryAddon = weapon->GetWeaponID();
+        m_iSecondaryAddonPaintKit = weapon->GetPaintKit();
 	}
 	else
 	{
@@ -3126,6 +3146,7 @@ void CCSPlayer::UpdateAddonBits()
 	{
 		iNewBits |= ADDON_KNIFE;
 		m_iKnifeAddon = weapon->GetWeaponID();
+        m_iKnifeAddonPaintKit = weapon->GetPaintKit();
 	}
 	else
 	{
@@ -3409,7 +3430,7 @@ bool CCSPlayer::IsArmored( int nHitGroup )
 	return bApplyArmor;
 }
 
-void CCSPlayer::Pain( bool bHasArmour, int nDmgTypeBits )
+void CCSPlayer::Pain( CCSPlayer* pAttacker, bool bHasArmour, int nDmgTypeBits )
 {
 	if ( (nDmgTypeBits & DMG_BURN) )
 	{
@@ -3443,16 +3464,41 @@ void CCSPlayer::Pain( bool bHasArmour, int nDmgTypeBits )
 
 	switch (m_LastHitGroup)
 	{
-		case HITGROUP_HEAD:
-			if (m_bHasHelmet)  // He's wearing a helmet
+		case HITGROUP_HEAD: {
+      //When hit in the head we play a sound for the player who made the headshot to give them
+      //feedback. This plays even at a very long range. Other players receive another sound
+      //that doesn't carry as far.
+      CRecipientFilter filter;
+      for (int i = 1; i <= gpGlobals->maxClients; ++i)
 			{
-				EmitSound( "Player.DamageHelmet" );
+				CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
+        if (!pPlayer || pPlayer == pAttacker)
+        {
+          //exclude the player who made the shot.
+          continue;
+        }
+        filter.AddRecipient(pPlayer);
 			}
-			else  // He's not wearing a helmet
+			EmitSound_t params;
+      params.m_pSoundName = m_bHasHelmet ? "Player.DamageHelmet" : "Player.DamageHeadShot";
+      params.m_flSoundTime = 0.0f;
+      params.m_pflSoundDuration = nullptr;
+      params.m_bWarnOnDirectWaveReference = true;
+      EmitSound(filter, entindex(), params);
+      if (pAttacker != nullptr)
 			{
-				EmitSound( "Player.DamageHeadShot" );
+				//The player who made the shot gets this 'feedback' version of the sound.
+        CRecipientFilter attacker_filter;
+        attacker_filter.AddRecipient(pAttacker);
+        EmitSound_t attacker_params;
+        attacker_params.m_pSoundName = m_bHasHelmet ? "Player.DamageHelmetFeedback" : "Player.DamageHeadShotFeedback";
+        attacker_params.m_flSoundTime = 0.0f;
+        attacker_params.m_pflSoundDuration = nullptr;
+        attacker_params.m_bWarnOnDirectWaveReference = true;
+        EmitSound(attacker_filter, entindex(), attacker_params);
 			}
 			break;
+        }
 		default:
 			if ( bHasArmour == false )
 			{
@@ -3795,14 +3841,14 @@ int CCSPlayer::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 		if( !(info.GetDamageType() & DMG_FALL ) && !(info.GetDamageType() & DMG_BURN ) && !(info.GetDamageType() & DMG_BLAST ) )
 		{
 
-			Pain( true /*has armor*/, info.GetDamageType() );
+			Pain( pAttacker, true /*has armor*/, info.GetDamageType() );
 		}
 	}
 	else 
 	{
 		m_lastDamageArmor = 0;
 		if( !(info.GetDamageType() & DMG_FALL ) )
-			Pain( false /*no armor*/, info.GetDamageType() );
+			Pain( pAttacker, false /*no armor*/, info.GetDamageType() );
 	}
 
 	if ( pInflictorWeapon != NULL || ( pGrenade && fDamageToHealth > 0 ) )
@@ -6802,7 +6848,7 @@ bool CCSPlayer::ClientCommand( const CCommand &args )
 	}
 	else if ( FStrEq( pcmd, "playerradio" ) )
 	{
-		if ( args.ArgC() >= 2 && g_pDeveloper->GetInt() > 0 )
+		if ( args.ArgC() >= 2 && ShouldRunRateLimitedCommand( args ) )
 		{
 			const char* pszSound = args.Arg( 1 );
 			const char* pszCaption = (args.ArgC() > 2) ? args.Arg( 2 ) : NULL;
@@ -9166,6 +9212,13 @@ CBaseEntity	*CCSPlayer::GiveNamedItem( const char *pszName, int iSubType )
 			pWeapon->SetOriginalOwnerIndex( GetControlledBot()->entindex() );
 		}
 	}
+    
+    //ATOMIC_REAKTOR: Placing skin apply here btw we change skin after respawning or buying weapon...
+    if (pWeapon)
+    {
+        int paintID = g_pCSLoadout->GetWeaponSkinForPlayerWeaponid(this, pWeapon->GetCSWeaponID());
+        pWeapon->SetPaintKit(paintID);
+    }
 
 	StockPlayerAmmo( pWeapon );
 

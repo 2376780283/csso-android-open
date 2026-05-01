@@ -15,6 +15,7 @@
 #include <vgui_controls/AnimationController.h>
 
 ConVar cl_showloadout( "cl_showloadout", "1", FCVAR_ARCHIVE, "Toggles display of current loadout." );
+ConVar cl_weapon_icon_blur( "cl_weapon_icon_blur", "1", FCVAR_ARCHIVE, "Enable edge blur and rarity coloring on weapon icons" );
 extern ConVar cl_hud_color;
 extern ConVar cl_draw_only_deathnotices;
 
@@ -90,6 +91,8 @@ void CCSHudWeaponSelection::OnThink()
 		m_pDefuserIcon->SetVisible( m_bHasDefuser );
 		ShowAndUpdateSelection( WEPSELECT_SWITCH ); // update panel positions
 	}
+
+	UpdateWeaponBlinkAnimation();
 }
 
 void CCSHudWeaponSelection::ProcessInput( void )
@@ -121,7 +124,7 @@ void CCSHudWeaponSelection::LevelShutdown( void )
 	V_memset( m_weaponPanels, 0, sizeof( m_weaponPanels ) );
 }
 
-void CCSHudWeaponSelection::AddWeapon( C_BaseCombatWeapon *pWeapon, bool bSelected )
+void CCSHudWeaponSelection::AddWeapon( C_BaseCombatWeapon *pWeapon, bool bSelected, bool bShouldBlink )
 {
 	if ( !pWeapon || !C_CSPlayer::GetLocalCSPlayer() )
 		return;
@@ -133,31 +136,89 @@ void CCSHudWeaponSelection::AddWeapon( C_BaseCombatWeapon *pWeapon, bool bSelect
 	C_BasePlayer *pPlayer = GetHudPlayer();
 	if ( !pCSWeapon || !pPlayer || !pCSWeapon->GetPlayerOwner() || pCSWeapon->GetPlayerOwner() != pPlayer )
 		return;
+        
+    int iPaintKit = pCSWeapon->GetPaintKit();
+    const SkinDefinition_t* pSkinDef = NULL;
+    
+    if ( iPaintKit > 0 )
+	{
+		pSkinDef = g_SkinDatabase.FindSkinByPaintKit( iPaintKit );
+		if ( pSkinDef )
+		{
+			DevMsg( "[WeaponSelection] Found skin: paintkit=%d name='%s' rarity=%d\n", 
+				iPaintKit, pSkinDef->szName, pSkinDef->rarity );
+		}
+		else
+		{
+			DevMsg( "[WeaponSelection] Skin not found in database for paintkit=%d\n", iPaintKit );
+		}
+	}
 
 	//Put the new weapon in the list
 	if ( !m_weaponPanels[nWepSlot][nWepPos].bInitialized )
 	{
 		m_weaponPanels[nWepSlot][nWepPos] = CreateNewPanel( nWepSlot, nWepPos, pWeapon, bSelected );
-	}
+        m_weaponPanels[nWepSlot][nWepPos].JustPickedUp = true;
+    	m_weaponPanels[nWepSlot][nWepPos].bBlinking = bShouldBlink; 
+        m_weaponPanels[nWepSlot][nWepPos].flBlinkStartTime = bShouldBlink ? gpGlobals->curtime : 0.0f;
+        m_weaponPanels[nWepSlot][nWepPos].nBlinkCount = 0;
+    }
 	else
 	{
 		m_weaponPanels[nWepSlot][nWepPos].hWeapon = pWeapon;
 		m_weaponPanels[nWepSlot][nWepPos].bInitialized = true;
 		m_weaponPanels[nWepSlot][nWepPos].bSelected = bSelected;
-	}
+		m_weaponPanels[nWepSlot][nWepPos].bBlinking = bShouldBlink; 
+        m_weaponPanels[nWepSlot][nWepPos].flBlinkStartTime = bShouldBlink ? gpGlobals->curtime : 0.0f;
+        m_weaponPanels[nWepSlot][nWepPos].nBlinkCount = 0;
+    }
+    
+    bool bApplyGlow = cl_weapon_icon_blur.GetBool() && bSelected;
+    
+    int glowRadius = 4;
+    
+    Color glowColor = Color( 0, 0, 0, 0 );
+    
+        if ( pSkinDef )
+		{
+			glowColor = GetRarityColor( pSkinDef->rarity );
+			
+			DevMsg( "[WeaponSelection] SELECTED weapon: %s | PaintKit: %d | Skin: %s | Rarity: %d | GlowColor: RGB(%d,%d,%d)\n",
+				pCSWeapon->GetClassname(), 
+				iPaintKit, 
+				pSkinDef->szName, 
+				pSkinDef->rarity,
+				glowColor.r(), glowColor.g(), glowColor.b() );
+		}
+		else
+		{
+			DevMsg( "[WeaponSelection] SELECTED weapon: %s | No skin found, using white glow\n", 
+				pCSWeapon->GetClassname() );
+		}
+    
 	m_weaponPanels[nWepSlot][nWepPos].pSVGPanel->SetRenderSize( weapon_icon_wide, weapon_icon_tall );
-	m_weaponPanels[nWepSlot][nWepPos].pSVGPanel->SetTexture( UTIL_VarArgs( "materials/vgui/weapons/svg/%s.svg", pCSWeapon->GetClassname() + 7 ) );
+	m_weaponPanels[nWepSlot][nWepPos].pSVGPanel->SetTexture( UTIL_VarArgs( "materials/vgui/weapons/svg/%s.svg", pCSWeapon->GetClassname() + 7), bApplyGlow, glowRadius, glowColor );
+    
+    wchar_t wszFinal[256];
 
-	if ( pCSWeapon->HasStatTrak() )
-	{
-		wchar_t wszLocalized[256];
-		g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#Cstrike_WPNHUD_StatTrak" ), 1, g_pVGuiLocalize->Find( pCSWeapon->GetPrintName() ) );
-		m_weaponPanels[nWepSlot][nWepPos].pNameLabel->SetText( wszLocalized );
-	}
-	else
-	{
-		m_weaponPanels[nWepSlot][nWepPos].pNameLabel->SetText( pCSWeapon->GetPrintName() );
-	}
+	BuildWeaponSkinName(
+    pCSWeapon,
+    pSkinDef,
+    wszFinal,
+    sizeof(wszFinal));
+
+    if ( pCSWeapon->HasStatTrak() )
+    {
+        wchar_t wszStatTrak[256];
+
+        g_pVGuiLocalize->ConstructString( wszStatTrak, sizeof(wszStatTrak), g_pVGuiLocalize->Find( "#Cstrike_WPNHUD_StatTrak" ), 1, wszFinal );
+
+        m_weaponPanels[nWepSlot][nWepPos].pNameLabel->SetText( wszStatTrak );
+    }
+    else
+    {
+        m_weaponPanels[nWepSlot][nWepPos].pNameLabel->SetText( wszFinal );
+    }
 
 	m_weaponPanels[nWepSlot][nWepPos].pNameLabel->SizeToContents();
 	UpdateCountLabels();
@@ -165,6 +226,60 @@ void CCSHudWeaponSelection::AddWeapon( C_BaseCombatWeapon *pWeapon, bool bSelect
 
 	// force a weapon switch to catch where we got a user message but not the network update, yet
 	m_flUpdateInventoryAt = gpGlobals->curtime + 0.1;
+}
+
+void CCSHudWeaponSelection::BuildWeaponSkinName( CWeaponCSBase *pWeapon, const SkinDefinition_t *pSkinDef, wchar_t *out, int outSizeBytes )
+{
+    wchar_t wszWeapon[128] = L"";
+    wchar_t wszSkin[128] = L"";
+
+    // Weapon name
+    const wchar_t *pWeaponName = g_pVGuiLocalize->Find( pWeapon->GetPrintName() );
+    if ( pWeaponName )
+    {
+        g_pVGuiLocalize->ConstructString(
+            wszWeapon, sizeof(wszWeapon),
+            pWeaponName,
+            0
+        );
+    }
+
+    // item name
+    if ( pSkinDef )
+    {
+        const wchar_t *pSkinName = g_pVGuiLocalize->Find( pSkinDef->szName );
+        if ( pSkinName )
+        {
+            g_pVGuiLocalize->ConstructString(
+                wszSkin, sizeof(wszSkin),
+                pSkinName,
+                0
+            );
+        }
+        else
+        {
+            g_pVGuiLocalize->ConvertANSIToUnicode(
+                pSkinDef->szName,
+                wszSkin,
+                sizeof(wszSkin)
+            );
+        }
+
+        V_snwprintf(
+            out,
+            outSizeBytes / sizeof(wchar_t),
+            L"%ls | %ls",
+            wszWeapon,
+            wszSkin
+        );
+        return;
+    }
+
+    V_wcsncpy(
+        out,
+        wszWeapon,
+        outSizeBytes / sizeof(wchar_t)
+    );
 }
 
 void CCSHudWeaponSelection::RemoveWeapon( int nSlot, int nPos )
@@ -202,17 +317,25 @@ void CCSHudWeaponSelection::RemoveWeapon( int nSlot, int nPos )
 
 void CCSHudWeaponSelection::RemoveAllItems( void )
 {
-	//Remove all items before we exit
-	for ( int i = 0; i < MAX_WEP_SELECT_PANELS; i++ )
-	{
-		for ( int j = 0; j < MAX_WEP_SELECT_POSITIONS; j++ )
-		{
-			//Remove all items before we exit
-			RemoveWeapon( i, j );
-		}
-	}
+    bool savedJustPickedUp[MAX_WEP_SELECT_PANELS][MAX_WEP_SELECT_POSITIONS];
+    for ( int i = 0; i < MAX_WEP_SELECT_PANELS; i++ )
+    {
+        for ( int j = 0; j < MAX_WEP_SELECT_POSITIONS; j++ )
+        {
+            savedJustPickedUp[i][j] = m_weaponPanels[i][j].JustPickedUp;
+            RemoveWeapon( i, j );
+        }
+    }
 
-	V_memset( m_weaponPanels, 0, sizeof( m_weaponPanels ) );
+    V_memset( m_weaponPanels, 0, sizeof( m_weaponPanels ) );
+    
+    for ( int i = 0; i < MAX_WEP_SELECT_PANELS; i++ )
+    {
+        for ( int j = 0; j < MAX_WEP_SELECT_POSITIONS; j++ )
+        {
+            m_weaponPanels[i][j].JustPickedUp = savedJustPickedUp[i][j];
+        }
+    }
 }
 
 WeaponSelectPanel CCSHudWeaponSelection::CreateNewPanel( int nSlot, int nPos, C_BaseCombatWeapon *pWeapon, bool bSelected )
@@ -285,6 +408,11 @@ void CCSHudWeaponSelection::ShowAndUpdateSelection( int nType, C_BaseCombatWeapo
 	C_BasePlayer *pPlayer = GetHudPlayer();
 	if ( !pPlayer )
 		return;
+		
+	CWeaponCSBase *pCSWeapon = (CWeaponCSBase*) pWeapon;
+	if ( pCSWeapon && pCSWeapon->GetCSWpnData().m_WeaponType == WEAPONTYPE_GRENADE &&
+		 nType == WEPSELECT_DROP && pPlayer->GetAmmoCount( pCSWeapon->GetPrimaryAmmoType() ) > 0 )
+		return;	
 
 	CHudWeaponSelection *pHudSelection = (CHudWeaponSelection *)GET_HUDELEMENT( CHudWeaponSelection );
 	if ( !pHudSelection )
@@ -324,9 +452,10 @@ void CCSHudWeaponSelection::ShowAndUpdateSelection( int nType, C_BaseCombatWeapo
 						// but we can't add grenades back after they've been thrown because they are set as thrown before they've left our inventory.....
 						// if it's not a grenade, OR if its a grenade and hasn't been thrown, add it back
 						// we are awarded bonus grenades late during gun gun arsenal mode, so we have to catch them here
-						if ( !pGrenade || (pGrenade && !pGrenade->IsPinPulled() && !pGrenade->IsBeingThrown() && !pGrenade->GetIsThrown()) )
-						{
-							AddWeapon( pNextWeapon, (GetSelectedWeapon() == pNextWeapon) );
+	            		if ( !pGrenade || (pGrenade && !pGrenade->IsPinPulled() && !pGrenade->IsBeingThrown() && (!pGrenade->GetIsThrown() || pPlayer->GetAmmoCount( pGrenade->GetPrimaryAmmoType() ) > 0)) )
+						{					
+                            AddWeapon( pNextWeapon, (GetSelectedWeapon() == pNextWeapon), false ); 
+                            m_weaponPanels[i][j].JustPickedUp = false;
 						}
 					}
 					
@@ -348,6 +477,7 @@ void CCSHudWeaponSelection::ShowAndUpdateSelection( int nType, C_BaseCombatWeapo
  							{
  								RemoveWeapon( i, j );
  								bJustRemovedGrenade = true;
+                                 m_weaponPanels[i][j].JustPickedUp = false;
  							}
 
 //							pGrenade = static_cast<CBaseCSGrenade*>( pPanelWeapon );
@@ -382,7 +512,7 @@ void CCSHudWeaponSelection::ShowAndUpdateSelection( int nType, C_BaseCombatWeapo
 			bool bSelected = (pWeapon == GetSelectedWeapon());
 			if ( pWeapon )
 			{
-				AddWeapon( pWeapon, bSelected );
+				AddWeapon( pWeapon, bSelected, true );
 			}
 			break;
 		}
@@ -435,6 +565,9 @@ void CCSHudWeaponSelection::ShowAndUpdateSelection( int nType, C_BaseCombatWeapo
 void CCSHudWeaponSelection::UpdatePanelPositions( void )
 {
 	SetAlpha( 255 );
+    
+    vgui::AnimationController* pAnim = g_pClientMode->GetViewportAnimationController();
+    const float moveTime = 0.4f;
 
 	int nYPos = 0;
 	int nXPos = 0;
@@ -522,13 +655,52 @@ void CCSHudWeaponSelection::UpdatePanelPositions( void )
 						nYPos -= weapon_icon_slot_margin;
 					}
 				}
+                
+                int currentX = m_weaponPanels[i][j].pSVGPanel->GetXPos();
+                int currentY = m_weaponPanels[i][j].pSVGPanel->GetYPos();
 
-				m_weaponPanels[i][j].pSVGPanel->SetPos( nXPos, nYPos );
-				m_weaponPanels[i][j].pNameLabel->SetPos( nXPos + nIconWide - nNameLabelWide + name_label_xpos, nYPos + name_label_ypos );
+                if ( m_weaponPanels[i][j].bNew && m_weaponPanels[i][j].JustPickedUp )
+                {
+                    m_weaponPanels[i][j].bAnimating = gpGlobals->curtime >= m_weaponPanels[i][j].flAnimationEndTime;
+                    
+                    m_weaponPanels[i][j].pSVGPanel->SetPos(nXPos + nIconWide + 10, nYPos);
+                    pAnim->RunAnimationCommand( m_weaponPanels[i][j].pSVGPanel, "xpos", nXPos, 0.0f, moveTime, vgui::AnimationController::INTERPOLATOR_LINEAR );
+                    
+                    m_weaponPanels[i][j].bNew = false;
+                    m_weaponPanels[i][j].JustPickedUp = false;
+                    
+                    m_weaponPanels[i][j].nTargetX = nXPos;
+                    m_weaponPanels[i][j].nTargetY = nYPos;
+                }
+                else if ( m_weaponPanels[i][j].bNew )
+                {
+                    if ( m_weaponPanels[i][j].bAnimating == false )
+                    {
+                        m_weaponPanels[i][j].pSVGPanel->SetPos(nXPos, nYPos);
+                        m_weaponPanels[i][j].bNew = false;
+                    
+                        m_weaponPanels[i][j].nTargetX = nXPos;
+                        m_weaponPanels[i][j].nTargetY = nYPos;
+                    }
+                }
+                else
+                {
+                    if (m_weaponPanels[i][j].nTargetX != nXPos || m_weaponPanels[i][j].nTargetY != nYPos )
+                    {
+                        pAnim->RunAnimationCommand( m_weaponPanels[i][j].pSVGPanel, "xpos", nXPos, 0.0f, moveTime, vgui::AnimationController::INTERPOLATOR_LINEAR );
+                        pAnim->RunAnimationCommand( m_weaponPanels[i][j].pSVGPanel, "ypos", nYPos, 0.0f, moveTime, vgui::AnimationController::INTERPOLATOR_LINEAR );
+        
+                        m_weaponPanels[i][j].nTargetX = nXPos;
+                        m_weaponPanels[i][j].nTargetY = nYPos;
+                    }
+                }
+                
 				m_weaponPanels[i][j].pNameLabel->SetVisible( bSelected );
-				if ( bShowCountNumber )
+                m_weaponPanels[i][j].pNameLabel->SetPos( nXPos + nIconWide - nNameLabelWide + name_label_xpos, nYPos + name_label_ypos );
+                    
+                if ( bShowCountNumber )
 					m_weaponPanels[i][j].pCountLabel->SetPos( nXPos + count_label_xpos, nYPos + count_label_ypos );
-
+                
 				m_nPrevWepAlignSlot = nSlot;
 			}
 		}
@@ -624,7 +796,7 @@ void CCSHudWeaponSelection::UpdateSlotLabels()
 
 			if ( bFirstTime )
 			{
-				iXPos = GetWide() - icons_base_xpos + slot_label_xpos;
+				iXPos = GetWide() - m_pSlotLabels[i]->GetWide() - slot_label_xpos;
 				iYPos = icons_base_ypos + slot_label_ypos;
 				if ( pPlayer->HasDefuser() )
 					iYPos -= weapon_icon_defuser_margin;
@@ -685,6 +857,43 @@ void CCSHudWeaponSelection::FireGameEvent( IGameEvent *event )
  			m_bUpdateInventoryReset = true;
  		}
  	}
+}
+
+void CCSHudWeaponSelection::UpdateWeaponBlinkAnimation()
+{
+	const float BLINK_DURATION = 0.15f;
+	const int BLINK_CYCLES = 3;
+
+	for ( int nSlot = 0; nSlot < MAX_WEP_SELECT_PANELS; nSlot++ )
+	{
+		for ( int nPos = 0; nPos < MAX_WEP_SELECT_POSITIONS; nPos++ )
+		{
+			if ( !m_weaponPanels[nSlot][nPos].bBlinking || !m_weaponPanels[nSlot][nPos].pSVGPanel )
+				continue;
+
+			float flElapsedTime = gpGlobals->curtime - m_weaponPanels[nSlot][nPos].flBlinkStartTime;
+			float flTotalBlinkTime = BLINK_DURATION * 2 * BLINK_CYCLES;
+
+			if ( flElapsedTime >= flTotalBlinkTime )
+			{
+				m_weaponPanels[nSlot][nPos].bBlinking = false;
+				m_weaponPanels[nSlot][nPos].pSVGPanel->SetAlpha( 255 );
+				continue;
+			}
+
+			float flCycleTime = fmod( flElapsedTime, BLINK_DURATION * 2 );
+			if ( flCycleTime < BLINK_DURATION )
+			{
+				int nAlpha = 255 - (int)(255.0f * (flCycleTime / BLINK_DURATION));
+				m_weaponPanels[nSlot][nPos].pSVGPanel->SetAlpha( nAlpha );
+			}
+			else
+			{
+				int nAlpha = (int)(255.0f * ((flCycleTime - BLINK_DURATION) / BLINK_DURATION));
+				m_weaponPanels[nSlot][nPos].pSVGPanel->SetAlpha( nAlpha );
+			}
+		}
+	}
 }
 
 bool CCSHudWeaponSelection::ShouldDraw()

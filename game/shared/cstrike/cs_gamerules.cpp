@@ -876,6 +876,11 @@ ConVar mp_use_official_map_factions(
 	"0",
 	FCVAR_REPLICATED | FCVAR_NOTIFY,
 	"Determines wheter to use official factions for the current map or make faction selections free for everyone.\n 0 - Disable\n 1 - Enable for everyone\n 2 - Enable for bots only" );
+    
+ConVar mp_endmatch_votenextleveltime(
+	"mp_endmatch_votenextleveltime",
+	"20", FCVAR_REPLICATED | FCVAR_NOTIFY,
+	"If mp_endmatch_votenextmap is set, players have this much time to vote on the next map at match end." );
 
 // [jason] Can the dead speak to the living?
 ConVar sv_deadtalk( "sv_deadtalk", "0",	FCVAR_REPLICATED | FCVAR_NOTIFY, "Dead players can speak (voice, text) to the living" );
@@ -2537,6 +2542,7 @@ ConVar cl_autohelp(
 		bool bHeadshot = false;
 		bool bNoScope = false;
 		bool bBlindKill = false;
+		bool bInAir = false;
 
 		if ( pScorer )	// Is the killer a client?
 		{
@@ -2568,6 +2574,10 @@ ConVar cl_autohelp(
 							// we are flashed - draw a blind kill icon
 							bBlindKill = true;
 						}
+						if ( !(pCSScorer->GetFlags() & FL_ONGROUND) )
+						{
+							bInAir = true;
+						}
 					}
 				}
 				else
@@ -2586,9 +2596,9 @@ ConVar cl_autohelp(
 		{
 			killer_weapon_name += 7;
 		}
-		else if ( strncmp( killer_weapon_name, "NPC_", 8 ) == 0 )
+		else if ( strncmp( killer_weapon_name, "NPC_", 4 ) == 0 )
 		{
-			killer_weapon_name += 8;
+			killer_weapon_name += 4;
 		}
 		else if ( strncmp( killer_weapon_name, "func_", 5 ) == 0 )
 		{
@@ -2626,6 +2636,10 @@ ConVar cl_autohelp(
 			event->SetInt("userid", pCSVictim->GetUserID() );
             event->SetInt("assister", pAssiter ? pAssiter->GetUserID() : 0 );
 			event->SetInt("attacker", killer_ID );
+			if (!pAssiter && pCSVictim->IsBlind())
+				pAssiter = pCSVictim->GetLastFlashbangAttacker();
+            event->SetInt("assister", pAssiter ? pAssiter->GetUserID() : 0 );
+			event->SetBool("assistedflash", (pAssiter && pCSVictim->GetLastFlashbangAttacker() == pAssiter && pCSVictim->IsBlind()) );
 			event->SetString("weapon", killer_weapon_name );
 
 			// If the weapon has a silencer but it isn't currently attached, add "_off" suffix to the weapon name so hud can find an alternate icon
@@ -2644,19 +2658,14 @@ ConVar cl_autohelp(
 				}
 			}
 
-			event->SetInt( "headshot", bHeadshot ? 1 : 0 );
-			event->SetInt( "noscope", bNoScope ? 1 : 0 );
-			event->SetInt( "blind", bBlindKill ? 1 : 0 );
+			event->SetBool( "headshot", bHeadshot );
+			event->SetBool( "noscope", bNoScope );
+			event->SetBool( "blind", bBlindKill );
 			event->SetInt( "penetrated", info.GetObjectsPenetrated() );
 			event->SetInt( "priority", bHeadshot ? 8 : 7 );	// HLTV event priority, not transmitted
-			if ( pCSVictim->GetDeathFlags() & CS_DEATH_DOMINATION )
-			{
-				event->SetInt( "dominated", 1 );
-			}
-			else if ( pCSVictim->GetDeathFlags() & CS_DEATH_REVENGE )
-			{
-				event->SetInt( "revenge", 1 );
-			}
+			event->SetBool( "dominated", (pCSVictim->GetDeathFlags() & CS_DEATH_DOMINATION) );
+			event->SetBool( "revenge", (pCSVictim->GetDeathFlags() & CS_DEATH_REVENGE) );
+			event->SetBool( "inair", bInAir );
 			
 			gameeventmanager->FireEvent( event );
 		}
@@ -4672,7 +4681,7 @@ ConVar cl_autohelp(
 			else if ( mp_timelimit.GetFloat() > 0.0f )
 			{
 				// if maxrounds is 0 then the server is relying on mp_timelimit rather than mp_maxrounds.
-				if ( (GetMapRemainingTime() <= ((mp_timelimit.GetInt() * 60) / 2)) && m_iRoundWinStatus != WINNER_NONE )
+				if ( (GetMapRemainingTime() <= ((mp_timelimit.GetInt() * 60) / 2)) && IsRoundOver() )
 				{
 					bhalftime = true;
 				}
@@ -4708,7 +4717,7 @@ ConVar cl_autohelp(
 					bEndMatch = true;
 				}
 			}
-			else if ( GetMapRemainingTime() == 0 && m_iRoundWinStatus != WINNER_NONE )
+			else if ( GetMapRemainingTime() == 0 && IsRoundOver() )
 			{
 				bEndMatch = true;
 			}
@@ -4780,7 +4789,7 @@ ConVar cl_autohelp(
 					GoToIntermission();
 				}
 			}
-			else if ( GetMapRemainingTime() == 0 && m_iRoundWinStatus != WINNER_NONE )
+			else if ( GetMapRemainingTime() == 0 && IsRoundOver() )
 			{
 				m_phaseChangeAnnouncementTime = gpGlobals->curtime + mp_win_panel_display_time.GetInt();
 				GoToIntermission();
@@ -5001,14 +5010,11 @@ ConVar cl_autohelp(
 			// [Forrest] Calling ChangeLevel multiple times was causing IncrementMapCycleIndex
 			// to skip over maps in the list.  Avoid this using a technique from CTeamplayRoundBasedRules::Think.
 			// check to see if we should change levels now
-			if ( m_flIntermissionStartTime && ( m_flIntermissionStartTime + GetIntermissionDuration() < gpGlobals->curtime ) )
-			{
-				ChangeLevel(); // intermission is over
-
-                // Don't run this code again
+			if ( m_flIntermissionStartTime > 0.0f && gpGlobals->curtime >= m_flIntermissionStartTime + GetIntermissionDuration() + mp_endmatch_votenextleveltime.GetInt() )
+            {
+                ChangeLevel();
                 m_flIntermissionStartTime = 0.f;
-			}
-
+            }
 			return true;
 		}
 
@@ -8118,6 +8124,11 @@ CAmmoDef* GetAmmoDef()
 	return &ammoDef;
 }
 
+bool CCSGameRules::IsRoundOver() const
+{
+    return m_iRoundWinStatus != WINNER_NONE;
+}
+
 bool CCSGameRules::IsPlayingGunGameProgressive( void ) const
 {
     return ( IsPlayingGunGame() &&
@@ -8368,7 +8379,10 @@ void CCSGameRules::ClientSettingsChanged( CBasePlayer *pPlayer )
 		}
 
 		pCSPlayer->m_iLoadoutSlotKnifeWeaponCT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_knife_weapon_ct" ) );
+        pCSPlayer->m_iLoadoutSlotKnifeWeaponSkinCT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_knife_weapon_skin_ct" ) );
 		pCSPlayer->m_iLoadoutSlotKnifeWeaponT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_knife_weapon_t" ) );
+        pCSPlayer->m_iLoadoutSlotKnifeWeaponSkinT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_knife_weapon_skin_t" ) );
+        pCSPlayer->m_iGlovePaintKitID = CSLoadout()->GetGlovesSkinForPlayer( pCSPlayer, pCSPlayer->GetTeamNumber() );
 
 		int m_iNewAgentCT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_agent_ct" ) );
 		int m_iNewAgentT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_agent_t" ) );
@@ -8380,8 +8394,10 @@ void CCSGameRules::ClientSettingsChanged( CBasePlayer *pPlayer )
 
 		int m_iNewGlovesCT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_gloves_ct" ) );
 		int m_iNewGlovesT = atoi( engine->GetClientConVarValue( engine->IndexOfEdict( pCSPlayer->edict() ), "loadout_slot_gloves_t" ) );
+        int m_iNewGlovesSkinCT = CSLoadout()->GetGlovesSkinForPlayer( pCSPlayer, TEAM_CT );
+        int m_iNewGlovesSkinT = CSLoadout()->GetGlovesSkinForPlayer( pCSPlayer, TEAM_TERRORIST );
 		// change the gloves in the next round if needed
-		if ( ( m_iNewGlovesCT != pCSPlayer->m_iLoadoutSlotGlovesCT ) || ( m_iNewGlovesT != pCSPlayer->m_iLoadoutSlotGlovesT ) )
+		if ( ( m_iNewGlovesCT != pCSPlayer->m_iLoadoutSlotGlovesCT ) || ( m_iNewGlovesT != pCSPlayer->m_iLoadoutSlotGlovesT ) || m_iNewGlovesSkinCT != pCSPlayer->m_iGlovePaintKitID || m_iNewGlovesSkinT != pCSPlayer->m_iGlovePaintKitID )
 		{
 			pCSPlayer->m_bNeedToChangeGloves = true;
 		}

@@ -68,7 +68,8 @@ def build(bld):
 		'ZLIB',
 		'SDL2',
 		'JPEG',
-		'PNG'
+		'PNG',
+		'CURL',
 	]
 
 	install_path = bld.env.PREFIX

@@ -686,6 +686,7 @@ CCSMapOverview::CCSMapOverview( const char *pElementName ) : BaseClass( pElement
 	m_nCircleBackgroundTextureID = -1;
 	m_nCircleOverlayTextureID = -1;
 	m_nSquareOverlayTextureID = -1;
+	m_nCircleOutlineTextureID = -1;
 
 	g_pMapOverview = this;  // for cvars access etc
 
@@ -708,6 +709,11 @@ void CCSMapOverview::Init( void )
 	{
 		m_nCircleOverlayTextureID = surface()->CreateNewTextureID();
 		surface()->DrawSetTextureFile( m_nCircleOverlayTextureID, "vgui/hud/circle_radar_overlay", true, false );
+	}
+	if ( m_nCircleOutlineTextureID == -1 )
+	{
+		m_nCircleOutlineTextureID = surface()->CreateNewTextureID();
+		surface()->DrawSetTextureFile( m_nCircleOutlineTextureID, "vgui/hud/circle_radar_outline", true, false );
 	}
 	if ( m_nSquareOverlayTextureID == -1 )
 	{
@@ -1371,10 +1377,69 @@ void CCSMapOverview::DrawMapTexture()
 			surface()->DrawSetTexture( textureIDToUse );
 			surface()->DrawTexturedPolygon( CIRCLE_SEGMENTS, points );
 
-			// last, draw an overlay texture
-			surface()->DrawSetTexture( m_nCircleOverlayTextureID );
-			surface()->DrawSetColor( 255, 255, 255, 255 );
-			surface()->DrawTexturedRect( 0, 0, pwidth, pheight );
+			// draw overlay texture as a circle
+			if ( m_nCircleOverlayTextureID > 0 )
+			{
+				surface()->DrawSetTexture( m_nCircleOverlayTextureID );
+				surface()->DrawSetColor( 255, 255, 255, 255 );
+				
+				Vertex_t overlayPoints[CIRCLE_SEGMENTS];
+				for ( int i = 0; i < CIRCLE_SEGMENTS; ++i )
+				{
+					float flRadians = i * invDelta;
+					float ca = cos( flRadians );
+					float sa = sin( flRadians );
+
+					// Rotate it around the circle
+					float x = pwidth / 2 + ((pwidth - mapInset) / 2 * ca);
+					float y = pheight / 2 + ((pheight - mapInset) / 2 * sa);
+					Vector2D position( x, y );
+					Vector2D texCoord( (ca + 1.0f) * 0.5f, (sa + 1.0f) * 0.5f );
+
+					overlayPoints[i].m_Position = position;
+					overlayPoints[i].m_TexCoord = texCoord;
+				}
+				
+				surface()->DrawTexturedPolygon( CIRCLE_SEGMENTS, overlayPoints );
+			}
+			
+			// draw outline texture as a circle - only when bomb is planted with blinking effect
+			bool bBombPlanted = (g_PlantedC4s.Count() > 0);
+			if ( m_nCircleOutlineTextureID > 0 && bBombPlanted )
+			{
+				C_PlantedC4 *pC4 = g_PlantedC4s[0];
+				
+				// Only show outline if bomb is not defused or exploding
+				if ( !pC4->m_bBombDefused && !pC4->m_bExplodeWarning )
+				{
+					// Apply blinking effect based on m_flNextGlow, similar to bomb icon in teamcounter
+					int outlineAlpha = 255;
+					if ( gpGlobals->curtime + 0.1f >= pC4->m_flNextGlow )
+						outlineAlpha = 90;  // Dim when not glowing
+					
+					surface()->DrawSetTexture( m_nCircleOutlineTextureID );
+					surface()->DrawSetColor( 255, 0, 0, outlineAlpha );
+					
+					Vertex_t outlinePoints[CIRCLE_SEGMENTS];
+					for ( int i = 0; i < CIRCLE_SEGMENTS; ++i )
+					{
+						float flRadians = i * invDelta;
+						float ca = cos( flRadians );
+						float sa = sin( flRadians );
+
+						// Rotate it around the circle
+						float x = pwidth / 2 + ((pwidth - mapInset) / 2 * ca);
+						float y = pheight / 2 + ((pheight - mapInset) / 2 * sa);
+						Vector2D position( x, y );
+						Vector2D texCoord( (ca + 1.0f) * 0.5f, (sa + 1.0f) * 0.5f );
+
+						outlinePoints[i].m_Position = position;
+						outlinePoints[i].m_TexCoord = texCoord;
+					}
+					
+					surface()->DrawTexturedPolygon( CIRCLE_SEGMENTS, outlinePoints );
+				}
+			}
 		}
 	}
 	else

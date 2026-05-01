@@ -14,7 +14,7 @@
 
 #define null 0L
 
-#define NeedProportional() (/*IsAndroid() ||AndraMidoxXx: nillerusr,WTF is that?*/ CommandLine()->CheckParm("-gameuiproportionality"))
+#define NeedProportional() (CommandLine()->CheckParm("-autoscaleui"))
 
 #ifndef NULL
 #ifdef __cplusplus

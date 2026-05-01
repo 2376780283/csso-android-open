@@ -42,6 +42,8 @@ BEGIN_VS_SHADER( UnlitGeneric, "Help for UnlitGeneric" )
 		SHADER_PARAM( DETAILBLENDMODE, SHADER_PARAM_TYPE_INTEGER, "0", "mode for combining detail texture with base. 0=normal, 1= additive, 2=alpha blend detail over base, 3=crossfade" )
 		SHADER_PARAM( DETAILBLENDFACTOR, SHADER_PARAM_TYPE_FLOAT, "1", "blend amount for detail texture." )
 		SHADER_PARAM( DETAILTEXTURETRANSFORM, SHADER_PARAM_TYPE_MATRIX, "center .5 .5 scale 1 1 rotate 0 translate 0 0", "$detail texcoord transform" )
+	
+		SHADER_PARAM( DECALBLENDMODE, SHADER_PARAM_TYPE_INTEGER, "0", "mode for combining decal texture with base. 0=normal(decal*srca + base*(1-srca), 1= mod, 2=mod2x, 3=additive" )
 
 		SHADER_PARAM( SELFILLUMMASK, SHADER_PARAM_TYPE_TEXTURE, "shadertest/BaseTexture", "If we bind a texture here, it overrides base alpha (if any) for self illum" )
 
@@ -95,6 +97,8 @@ BEGIN_VS_SHADER( UnlitGeneric, "Help for UnlitGeneric" )
 		info.m_nDetailTextureBlendFactor = DETAILBLENDFACTOR;
 		info.m_nDetailTextureTransform = DETAILTEXTURETRANSFORM;
 
+		info.m_nDecalTextureCombineMode = DECALBLENDMODE;
+
 		info.m_nEnvmap = ENVMAP;
 		info.m_nEnvmapFrame = ENVMAPFRAME;
 		info.m_nEnvmapMask = ENVMAPMASK;
@@ -126,6 +130,7 @@ BEGIN_VS_SHADER( UnlitGeneric, "Help for UnlitGeneric" )
 		info.m_nBaseMapAlphaPhongMask = -1;
 		info.m_nEnvmapFresnel = -1;
 		info.m_nSelfIllumMask = -1;
+		info.m_nBaseMapLuminancePhongMask = -1;
 
 		info.m_nDistanceAlpha = DISTANCEALPHA;
 		info.m_nDistanceAlphaFromDetail = DISTANCEALPHAFROMDETAIL;
@@ -159,6 +164,8 @@ BEGIN_VS_SHADER( UnlitGeneric, "Help for UnlitGeneric" )
 		info.m_nDepthBlend = DEPTHBLEND;
 		info.m_nDepthBlendScale = DEPTHBLENDSCALE;
 		info.m_nReceiveFlashlight = RECEIVEFLASHLIGHT;
+
+		info.m_nPearlescent = -1;
 	}
 
 	SHADER_INIT_PARAMS()

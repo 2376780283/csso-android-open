@@ -72,6 +72,7 @@ extern CStudioRender g_StudioRender;
 //-----------------------------------------------------------------------------
 #define MAXLOCALLIGHTS 4
 #define MAXLIGHTCOMPUTE 16
+#define MAX_MAT_OVERRIDES 4
 
 enum StudioModelLighting_t
 {
@@ -261,6 +262,7 @@ public:
 	inline void R_ComputeLightAtPoints3( const FourVectors &pos, const FourVectors &norm, FourVectors &color );
 	void R_MouthLighting( __m128 fIllum, const FourVectors& normal, const FourVectors& forward, FourVectors& light );
 #endif
+    int GetForcedMaterialOverrideIndex( int nMaterialIndex );
 
 private:
 	enum
