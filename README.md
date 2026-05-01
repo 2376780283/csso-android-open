@@ -1,10 +1,12 @@
-# CS:SO Android source code
+# CS:SO 1.6 SourceApp Android source code
 Credits:
 Ported by ndke, den4iklovelinux, cherrybtw
 Mod author: PimonFeeD
 Source engine port author: nillerusr
 
-CS:SO apk source code https://github.com/ndke01/csso-android-launcher
+SomeFeatures from SourceApp
+
+CS:SO apk source code https://github.com/2376780283/csso-source-launcher
 
 
 # Source Engine
@@ -38,10 +40,13 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - Achivement system working without steam
 - Fixed many bugs
 - Serverbrowser works without steam
-# CS:SO
 - Bink video
 - Lunasvg
-- I forgot
+- webm video
+- achievement works without steam
+- avatar works without steam
+- blur vgui surface
+- skin system (csgo)
 
 # Current tasks
 - Rewrite materialsystem for OpenGL render
