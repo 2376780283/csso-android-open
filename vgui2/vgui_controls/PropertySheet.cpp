@@ -488,7 +488,7 @@ PropertySheet::PropertySheet(
 {
 	_activePage = NULL;
 	_activeTab = NULL;
-	_tabWidth = 64;
+	_tabWidth = 74;
 	_activeTabIndex = 0;
 	_showTabs = true;
 	_combo = NULL;
@@ -500,6 +500,7 @@ PropertySheet::PropertySheet(
 	m_pTabKV = NULL;
 	m_iTabHeight = 0;
     m_iTabHeightSmall = 0;
+	m_TabSide = TAB_TOP;
 
 	if ( m_bDraggableTabs )
 	{
@@ -516,7 +517,7 @@ PropertySheet::PropertySheet(Panel *parent, const char *panelName, ComboBox *com
 {
 	_activePage = NULL;
 	_activeTab = NULL;
-	_tabWidth = 64;
+	_tabWidth = 84;
 	_activeTabIndex = 0;
 	_combo=combo;
 	_combo->AddActionSignalTarget(this);
@@ -529,6 +530,7 @@ PropertySheet::PropertySheet(Panel *parent, const char *panelName, ComboBox *com
 	m_pTabKV = NULL;
 	m_iTabHeight = 0;
     m_iTabHeightSmall = 0;
+	m_TabSide = TAB_TOP;
 }
 
 //-----------------------------------------------------------------------------
@@ -551,6 +553,17 @@ bool PropertySheet::IsDraggableTab() const
 void PropertySheet::SetDraggableTabs( bool state )
 {
 	m_bDraggableTabs = state;
+}
+
+void PropertySheet::SetTabSide(TabSide side)
+{
+	m_TabSide = side;
+	InvalidateLayout();
+}
+
+PropertySheet::TabSide PropertySheet::GetTabSide() const
+{
+	return m_TabSide;
 }
 
 //-----------------------------------------------------------------------------
@@ -686,7 +699,7 @@ void PropertySheet::SetActivePage(Panel *page)
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: SetTabsWidth for horizal tab mode
 //-----------------------------------------------------------------------------
 void PropertySheet::SetTabWidth(int pixels)
 {
@@ -956,6 +969,16 @@ void PropertySheet::ApplySettings(KeyValues *inResourceData)
 		}
 	}
 
+	const char *side = inResourceData->GetString("tabside", "");
+	if (!stricmp(side, "left"))
+	{
+		SetTabSide(TAB_LEFT);
+	}
+	else if (!stricmp(side, "top"))
+	{
+		SetTabSide(TAB_TOP);
+	}
+
 	KeyValues *pTransitionKV = inResourceData->FindKey( "transition_time" );
 	if ( pTransitionKV )
 	{
@@ -977,13 +1000,22 @@ void PropertySheet::PaintBorder()
 	if (_activeTab)
 	{
 		_activeTab->GetBounds(px, py, pwide, ptall);
-		ptall -= 1;
 	}
 
 	// draw the border underneath the buttons, with a break
 	int wide, tall;
 	GetSize(wide, tall);
-	border->Paint(0, py + ptall, wide, tall, IBorder::SIDE_TOP, px + 1, px + pwide - 1);
+
+	if (m_TabSide == TAB_TOP)
+	{
+		ptall -= 1;
+		border->Paint(0, py + ptall, wide, tall, IBorder::SIDE_TOP, px + 1, px + pwide - 1);
+	}
+	else if (m_TabSide == TAB_LEFT)
+	{
+		pwide -= 1;
+		border->Paint(px + pwide, 0, wide, tall, IBorder::SIDE_LEFT, py + 1, py + ptall - 1);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1001,7 +1033,14 @@ void PropertySheet::PerformLayout()
 
 		if(_showTabs)
 		{
-			_activePage->SetBounds(0, tabHeight, wide, tall - tabHeight);
+			if (m_TabSide == TAB_TOP)
+			{
+				_activePage->SetBounds(0, tabHeight, wide, tall - tabHeight);
+			}
+			else if (m_TabSide == TAB_LEFT)
+			{
+				_activePage->SetBounds(_tabWidth, 0, wide - _tabWidth, tall);
+			}
 		}
 		else
 		{
@@ -1011,41 +1050,62 @@ void PropertySheet::PerformLayout()
 	}
 
 	
-	int xtab;
 	int limit = m_PageTabs.Count();
-
-	xtab = m_iTabXIndent;
 
 	// draw the visible tabs
 	if (_showTabs)
 	{
-		for (int i = 0; i < limit; i++)
+		if (m_TabSide == TAB_TOP)
 		{
-			int tabHeight = IsSmallTabs() ? (m_iTabHeightSmall-1) : (m_iTabHeight-1);
-
-            m_PageTabs[i]->GetSize(wide, tall);
-
-			if ( m_bTabFitText )
+			int xtab = m_iTabXIndent;
+			for (int i = 0; i < limit; i++)
 			{
-				m_PageTabs[i]->SizeToContents();
-				wide = m_PageTabs[i]->GetWide();
+				int tabHeight = IsSmallTabs() ? (m_iTabHeightSmall-1) : (m_iTabHeight-1);
 
-				int iXInset, iYInset;
-				m_PageTabs[i]->GetTextInset( &iXInset, &iYInset );
-				wide += (iXInset * 2);
-			}
+				int tWide, tTall;
+				m_PageTabs[i]->GetSize(tWide, tTall);
 
-			if (m_PageTabs[i] == _activeTab)
-			{
-				// active tab is taller
-				_activeTab->SetBounds(xtab, 2, wide, tabHeight);
+				if ( m_bTabFitText )
+				{
+					m_PageTabs[i]->SizeToContents();
+					tWide = m_PageTabs[i]->GetWide();
+
+					int iXInset, iYInset;
+					m_PageTabs[i]->GetTextInset( &iXInset, &iYInset );
+					tWide += (iXInset * 2);
+				}
+
+				if (m_PageTabs[i] == _activeTab)
+				{
+					// active tab is taller
+					_activeTab->SetBounds(xtab, 2, tWide, tabHeight);
+				}
+				else
+				{
+					m_PageTabs[i]->SetBounds(xtab, 4, tWide, tabHeight - 2);
+				}
+				m_PageTabs[i]->SetVisible(true);
+				xtab += (tWide + 1) + m_iTabXDelta;
 			}
-			else
+		}
+		else if (m_TabSide == TAB_LEFT)
+		{
+			int ytab = m_iTabXIndent;
+			for (int i = 0; i < limit; i++)
 			{
-				m_PageTabs[i]->SetBounds(xtab, 4, wide, tabHeight - 2);
+				int tabHeight = IsSmallTabs() ? (m_iTabHeightSmall-1) : (m_iTabHeight-1);
+
+				if (m_PageTabs[i] == _activeTab)
+				{
+					_activeTab->SetBounds(2, ytab, _tabWidth, tabHeight);
+				}
+				else
+				{
+					m_PageTabs[i]->SetBounds(4, ytab, _tabWidth - 2, tabHeight);
+				}
+				m_PageTabs[i]->SetVisible(true);
+				ytab += tabHeight + 1 + m_iTabXDelta;
 			}
-			m_PageTabs[i]->SetVisible(true);
-			xtab += (wide + 1) + m_iTabXDelta;
 		}
 	}
 	else
@@ -1429,7 +1489,8 @@ void PropertySheet::OnKeyCodePressed(KeyCode code)
 		case KEY_XSTICK2_RIGHT:
 		case STEAMCONTROLLER_DPAD_RIGHT:
 			{
-				ChangeActiveTab(_activeTabIndex+1);
+				if (m_TabSide == TAB_TOP)
+					ChangeActiveTab(_activeTabIndex+1);
 				break;
 			}
 		case KEY_LEFT:
@@ -1438,7 +1499,28 @@ void PropertySheet::OnKeyCodePressed(KeyCode code)
 		case KEY_XSTICK2_LEFT:
 		case STEAMCONTROLLER_DPAD_LEFT:
 			{
-				ChangeActiveTab(_activeTabIndex-1);
+				if (m_TabSide == TAB_TOP)
+					ChangeActiveTab(_activeTabIndex-1);
+				break;
+			}
+		case KEY_UP:
+		case KEY_XBUTTON_UP:
+		case KEY_XSTICK1_UP:
+		case KEY_XSTICK2_UP:
+		case STEAMCONTROLLER_DPAD_UP:
+			{
+				if (m_TabSide == TAB_LEFT)
+					ChangeActiveTab(_activeTabIndex-1);
+				break;
+			}
+		case KEY_DOWN:
+		case KEY_XBUTTON_DOWN:
+		case KEY_XSTICK1_DOWN:
+		case KEY_XSTICK2_DOWN:
+		case STEAMCONTROLLER_DPAD_DOWN:
+			{
+				if (m_TabSide == TAB_LEFT)
+					ChangeActiveTab(_activeTabIndex+1);
 				break;
 			}
 		default:
@@ -1599,9 +1681,17 @@ bool PropertySheet::IsDroppable( CUtlVector< KeyValues * >& msglist )
 	input()->GetCursorPos( mx, my );
 	ScreenToLocal( mx, my );
 
-	int tabHeight = IsSmallTabs() ? m_iTabHeightSmall : m_iTabHeight;
-	if ( my > tabHeight )
-		return false;
+	if (m_TabSide == TAB_TOP)
+	{
+		int tabHeight = IsSmallTabs() ? m_iTabHeightSmall : m_iTabHeight;
+		if ( my > tabHeight )
+			return false;
+	}
+	else if (m_TabSide == TAB_LEFT)
+	{
+		if ( mx > _tabWidth )
+			return false;
+	}
 
 	PropertySheet *sheet = IsDroppingSheet( msglist );
 	if ( !sheet )
@@ -1624,7 +1714,14 @@ void PropertySheet::OnDroppablePanelPaint( CUtlVector< KeyValues * >& msglist, C
 	GetSize( w, h );
 
 	int tabHeight = IsSmallTabs() ? m_iTabHeightSmall : m_iTabHeight;
-	h = tabHeight + 4;
+	if (m_TabSide == TAB_TOP)
+	{
+		h = tabHeight + 4;
+	}
+	else
+	{
+		w = _tabWidth + 4;
+	}
 
 	x = y = 0;
 	LocalToScreen( x, y );
@@ -1657,9 +1754,20 @@ void PropertySheet::OnDroppablePanelPaint( CUtlVector< KeyValues * >& msglist, C
 		m_PageTabs[ last - 1 ]->GetBounds( x, y, w, h );
 	}
 
-	// Compute left edge of "fake" tab
-
-	x += ( w + 1 );
+	// Compute pos of "fake" tab
+	if (m_TabSide == TAB_TOP)
+	{
+		x += ( w + 1 );
+		y = 4;
+		h = tabHeight - 4;
+	}
+	else
+	{
+		y += ( h + 1 );
+		x = 4;
+		w = _tabWidth - 4;
+		h = tabHeight;
+	}
 
 	// Compute size of new panel
 	KeyValues *data = msglist[ 0 ];
@@ -1667,7 +1775,7 @@ void PropertySheet::OnDroppablePanelPaint( CUtlVector< KeyValues * >& msglist, C
 	Assert( text );
 
 	PageTab *fakeTab = new PageTab( this, "FakeTab", text, NULL, _tabWidth, NULL, false );
-	fakeTab->SetBounds( x, 4, w, tabHeight - 4 );
+	fakeTab->SetBounds( x, y, w, h );
 	fakeTab->SetFont( m_tabFont );
 	SETUP_PANEL( fakeTab );
 	fakeTab->Repaint();

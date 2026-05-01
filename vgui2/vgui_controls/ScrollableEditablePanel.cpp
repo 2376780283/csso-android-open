@@ -68,7 +68,7 @@ void ScrollableEditablePanel::PerformLayout()
 //-----------------------------------------------------------------------------
 void ScrollableEditablePanel::OnScrollBarSliderMoved()
 {
-	InvalidateLayout();
+//	InvalidateLayout();
 
 	int nScrollAmount = m_pScrollBar->GetValue();
 	m_pChild->SetPos( 0, -nScrollAmount ); 
