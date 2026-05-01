@@ -6,6 +6,7 @@
 
 #include "webm_video.h"
 #include "webm_recorder.h"
+#include "webm_material.h"
 
 
 #include "filesystem.h"
@@ -38,12 +39,12 @@ EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CWebMVideoSubSystem, IVideoSubSystem, VIDEO_S
 // ===========================================================================
 VideoFileExtensionInfo_t s_WebMExtensions[] =
 {
-	{ ".webm", VideoSystem::WEBM,  VideoSystemFeature::FULL_ENCODE },
+	{ ".webm", VideoSystem::WEBM,  VideoSystemFeature::PLAY_VIDEO_FILE_IN_MATERIAL | VideoSystemFeature::PLAY_VIDEO_FILE_FULL_SCREEN | VideoSystemFeature::FULL_ENCODE },
 };
 
 const int s_WebMExtensionCount = ARRAYSIZE( s_WebMExtensions );
 
-const VideoSystemFeature_t	CWebMVideoSubSystem::DEFAULT_FEATURE_SET = VideoSystemFeature::FULL_ENCODE;
+const VideoSystemFeature_t	CWebMVideoSubSystem::DEFAULT_FEATURE_SET = VideoSystemFeature::PLAY_VIDEO_FILE_IN_MATERIAL | VideoSystemFeature::PLAY_VIDEO_FILE_FULL_SCREEN | VideoSystemFeature::FULL_ENCODE;
 
 
 // ===========================================================================
@@ -234,15 +235,42 @@ VideoResult_t CWebMVideoSubSystem::PlayVideoFileFullScreen( const char *filename
 // ===========================================================================
 IVideoMaterial* CWebMVideoSubSystem::CreateVideoMaterial( const char *pMaterialName, const char *pVideoFileName, VideoPlaybackFlags_t flags )
 {
-	SetResult( VideoResult::FEATURE_NOT_AVAILABLE );
-	return NULL;
+	SetResult( VideoResult::BAD_INPUT_PARAMETERS );
+	AssertExitN( m_CurrentStatus == VideoSystemStatus::OK && (pMaterialName != nullptr || pVideoFileName != nullptr) );
+
+	CWebMMaterial *pVideoMaterial = new CWebMMaterial();
+	if ( pVideoMaterial == nullptr || pVideoMaterial->Init( pMaterialName, pVideoFileName, flags ) == false )
+	{
+		SAFE_DELETE( pVideoMaterial );
+		SetResult( VideoResult::VIDEO_ERROR_OCCURED );
+		return nullptr;
+	}
+
+	IVideoMaterial *pInterface = (IVideoMaterial*) pVideoMaterial;
+	m_MaterialList.AddToTail( pInterface );
+
+	SetResult( VideoResult::SUCCESS );
+	return pInterface;
 }
 
 
 VideoResult_t CWebMVideoSubSystem::DestroyVideoMaterial( IVideoMaterial *pVideoMaterial )
 {
-	return SetResult (VideoResult::FEATURE_NOT_AVAILABLE );
+	AssertExitV( m_CurrentStatus == VideoSystemStatus::OK, SetResult( VideoResult::SYSTEM_NOT_AVAILABLE ) );
+	AssertPtrExitV( pVideoMaterial, SetResult( VideoResult::BAD_INPUT_PARAMETERS ) );
 
+	if ( m_MaterialList.Find( pVideoMaterial ) != -1 )
+	{
+		CWebMMaterial *pObject = (CWebMMaterial *)pVideoMaterial;
+		pObject->Shutdown();
+		delete pObject;
+
+		m_MaterialList.FindAndFastRemove( pVideoMaterial );
+
+		return SetResult( VideoResult::SUCCESS );
+	}
+
+	return SetResult( VideoResult::MATERIAL_NOT_FOUND );
 }
 
 

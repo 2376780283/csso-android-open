@@ -18,6 +18,7 @@ def build(bld):
 	source = [
 		'webm_video.cpp',
 		'webm_recorder.cpp',
+		'webm_material.cpp',
 	]
 
 	includes = [
@@ -26,12 +27,20 @@ def build(bld):
 		'../../public/tier0',
 		'../../public/tier1',
 		'../../common',
-		'../../webm'
+		'../../webm',
+		'../../thirdparty/libvpx',
+		'../../thirdparty/libwebm',
+		'../../thirdparty/vorbis-main/include',
+		'../../thirdparty/ogg-main/include',
 	] + bld.env.INCLUDES_SDL2
 
+	if bld.env.DEST_OS == 'android':
+		includes += [
+			'../../ffmpeg/'+bld.env.DEST_CPU+'/']
+
 	defines = []
-	bld.env.LIB = ['avutil', 'avformat', 'avcodec', 'webm', 'webm', 'vorbis', 'vorbisenc', 'vpx']
-	libs = ['tier0','tier1','tier2','tier3','vstdlib', 'AVCODEC', 'AVUTIL', 'AVFORMAT']
+	bld.env.LIB = ['avutil', 'avformat', 'avcodec', 'swscale', 'webm', 'webm', 'vorbis', 'vorbisenc', 'vpx']
+	libs = ['tier0','tier1','tier2','tier3','vstdlib', 'AVCODEC', 'AVUTIL', 'AVFORMAT', 'SWSCALE']
 
 	if bld.env.DEST_OS == 'win32':
 		libs += ['USER32']
