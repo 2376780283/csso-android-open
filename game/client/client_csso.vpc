@@ -322,8 +322,6 @@ $Project "Client (CStrike)"
 					$File	"gameui\PlayerListDialog.h"
 					$File	"gameui\SaveGameDialog.h"
 					$File	"gameui\ControllerDialog.h"
-					$File	"gameui\ExtraManagerPanel.cpp"
-					$File    "gameui\CardPanel.cpp"
 				}
 
 				$Folder	"Matchmaking"
@@ -408,7 +406,6 @@ $Project "Client (CStrike)"
 					$File	"gameui\ModOptionsSubKnives.h"
 					$File	"gameui\ModOptionsSubGloves.h"
 					$File	"gameui\ModOptionsSubCrosshair.h"
-					$File	"gameui\ExtraManagerPanel.h"
 				}
 			}
 			$Folder "HUD Elements"

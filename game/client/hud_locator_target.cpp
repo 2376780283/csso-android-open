@@ -1,4 +1,4 @@
-//========= Copyright � 1996-2008, Valve Corporation, All rights reserved. ============//
+//========= Copyright � 1996-2008, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: See header file
 //
@@ -24,7 +24,6 @@
 
 #include "hud_macros.h"
 #include "iclientmode.h"
-#include "tier1/strtools.h"
 
 #ifdef INSOURCE
 #include "in_player_shared.h"
@@ -132,9 +131,6 @@ void CLocatorTarget::Activate(int serialNumber)
     m_alpha = 0;
     m_fadeStart = gpGlobals->curtime;
 
-    m_iOnscreenTextureID = -1;
-    m_iOffscreenTextureID = -1;
-
     m_offsetX = m_offsetY = 0;
 
     int iStartX = ScreenWidth() / 2;
@@ -185,7 +181,6 @@ void CLocatorTarget::Deactivate(bool bNoFade)
         m_szVguiTargetName = "";
         m_szVguiTargetLookup = "";
         m_hVguiTarget = NULL;
-        m_hTargetEntity = NULL;
         m_nVguiTargetEdge = vgui::Label::a_northwest;
 
         m_szBinding = "";
@@ -214,12 +209,6 @@ void CLocatorTarget::Deactivate(bool bNoFade)
 void CLocatorTarget::Update()
 {
     m_frameLastUpdated = gpGlobals->framecount;
-
-    C_BaseEntity *pEntity = m_hTargetEntity.Get();
-    if (pEntity)
-    {
-        m_vecOrigin = pEntity->GetAbsOrigin();
-    }
 
     if (m_bVisible && (m_iEffectsFlags & LOCATOR_ICON_FX_FADE_OUT))
     {
@@ -797,7 +786,6 @@ int Locator_AddTarget()
         vgui::SETUP_PANEL(pLocator);
         pLocator->SetBounds(0, 0, ScreenWidth(), ScreenHeight());
         pLocator->SetPos(0, 0);
-        pLocator->SetZPos(1000); // 确保在最顶层
         pLocator->SetVisible(true);
         vgui::ivgui()->AddTickSignal(pLocator->GetVPanel());
     }
@@ -984,39 +972,43 @@ void CLocatorPanel::AnimateIconSize(int flags, int *wide, int *tall, float fPuls
     *tall = newTall;
 }
 
-static int s_hTestTarget = -1;
-
 //-----------------------------------------------------------------------------
 // Purpose: Modify the alpha of the icon before it is drawn.
 //-----------------------------------------------------------------------------
 void CLocatorPanel::AnimateIconAlpha(int flags, int *alpha, float fadeStart)
 {
-    float flScale = MAX_ICON_ALPHA;
-    
+    float flScale = MIN_ICON_ALPHA;
+    float scaleDelta = MAX_ICON_ALPHA - MIN_ICON_ALPHA;
+
     if (flags & LOCATOR_ICON_FX_ALPHA_SLOW)
     {
-        float scaleDelta = MAX_ICON_ALPHA - MIN_ICON_ALPHA;
-        flScale = MIN_ICON_ALPHA + scaleDelta * fabs(sin(gpGlobals->curtime * 3));
+        flScale += scaleDelta * fabs(sin(gpGlobals->curtime * 3));
     }
     else if (flags & LOCATOR_ICON_FX_ALPHA_FAST)
     {
-        float scaleDelta = MAX_ICON_ALPHA - MIN_ICON_ALPHA;
-        flScale = MIN_ICON_ALPHA + scaleDelta * fabs(sin(gpGlobals->curtime * 7));
+        flScale += scaleDelta * fabs(sin(gpGlobals->curtime * 7));
+    }
+    else if (flags & LOCATOR_ICON_FX_ALPHA_URGENT)
+    {
+        flScale += scaleDelta * fabs(sin(gpGlobals->curtime * 10));
+    }
+    else
+    {
+        flScale = MAX_ICON_ALPHA;
     }
 
     if (flags & LOCATOR_ICON_FX_FADE_OUT)
     {
-        flScale *= MAX(0.0f, (locator_fade_time.GetFloat() - (gpGlobals->curtime - fadeStart)) / locator_fade_time.GetFloat());
+        flScale *=
+            MAX(0.0f, (locator_fade_time.GetFloat() - (gpGlobals->curtime - fadeStart)) / locator_fade_time.GetFloat());
     }
     else if (flags & LOCATOR_ICON_FX_FADE_IN)
     {
-        flScale *= (1.0f - MAX(0.0f, (locator_fade_time.GetFloat() - (gpGlobals->curtime - fadeStart)) / locator_fade_time.GetFloat()));
+        flScale *= MAX_ICON_ALPHA - MAX(0.0f, (locator_fade_time.GetFloat() - (gpGlobals->curtime - fadeStart)) /
+                                                  locator_fade_time.GetFloat());
     }
 
     *alpha = static_cast<int>(255.0f * flScale);
-    
-    // Test override
-    // if (s_hTestTarget != -1) *alpha = 255; 
 }
 
 //-----------------------------------------------------------------------------
@@ -1042,25 +1034,11 @@ void CLocatorPanel::AnimateIconPosition(int flags, int *x, int *y)
     *y = newY;
 }
 
-// static int s_hTestTarget = -1;
-
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
 void CLocatorPanel::OnTick(void)
 {
-    if (s_hTestTarget != -1)
-    {
-        CLocatorTarget *pTarget = GetPointerForHandle(s_hTestTarget);
-        if (pTarget)
-        {
-            pTarget->Update();
-        }
-        else
-        {
-            s_hTestTarget = -1;
-        }
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1301,29 +1279,15 @@ bool CLocatorPanel::ValidateTargetTextures(CLocatorTarget *pTarget)
         }
         else
         {
-            // 如果是路径，直接加载贴图文件
-            if (strchr(szIconTextureName, '/') || strchr(szIconTextureName, '\\'))
+            pTarget->m_pIcon_onscreen = HudIcons().GetIcon(szIconTextureName);
+            if (pTarget->m_pIcon_onscreen)
             {
-                if (pTarget->m_iOnscreenTextureID == -1)
-                    pTarget->m_iOnscreenTextureID = vgui::surface()->CreateNewTextureID();
-                
-                vgui::surface()->DrawSetTextureFile(pTarget->m_iOnscreenTextureID, szIconTextureName, true, false);
-                pTarget->m_pIcon_onscreen = NULL;
-                pTarget->m_widthScale_onscreen = 1.0f;
+                pTarget->m_widthScale_onscreen =
+                    static_cast<float>(pTarget->m_pIcon_onscreen->Width()) / pTarget->m_pIcon_onscreen->Height();
             }
             else
             {
-                pTarget->m_pIcon_onscreen = HudIcons().GetIcon(szIconTextureName);
-                if (pTarget->m_pIcon_onscreen)
-                {
-                    pTarget->m_widthScale_onscreen =
-                        static_cast<float>(pTarget->m_pIcon_onscreen->Width()) / pTarget->m_pIcon_onscreen->Height();
-                }
-                else
-                {
-                    pTarget->m_widthScale_onscreen = 1.0f;
-                }
-                pTarget->m_iOnscreenTextureID = -1;
+                pTarget->m_widthScale_onscreen = 1.0f;
             }
         }
 
@@ -1343,7 +1307,7 @@ bool CLocatorPanel::ValidateTargetTextures(CLocatorTarget *pTarget)
 
         if (Q_strlen(szIconTextureName) == 0)
         {
-            if (!pTarget->m_pIcon_onscreen && pTarget->m_iOnscreenTextureID == -1)
+            if (!pTarget->m_pIcon_onscreen)
             {
                 DevWarning("Locator Target has no offscreen texture name and can't fall back!\n");
             }
@@ -1351,26 +1315,13 @@ bool CLocatorPanel::ValidateTargetTextures(CLocatorTarget *pTarget)
             {
                 // The onscreen texture is valid, so default behavior is to use that.
                 pTarget->m_pIcon_offscreen = pTarget->m_pIcon_onscreen;
-                pTarget->m_iOffscreenTextureID = pTarget->m_iOnscreenTextureID;
                 const char *pchDrawBindingName = pTarget->DrawBindingName();
                 pTarget->DrawBindingNameOffscreen(pchDrawBindingName);
             }
         }
         else
         {
-             if (strchr(szIconTextureName, '/') || strchr(szIconTextureName, '\\'))
-            {
-                if (pTarget->m_iOffscreenTextureID == -1)
-                    pTarget->m_iOffscreenTextureID = vgui::surface()->CreateNewTextureID();
-                
-                vgui::surface()->DrawSetTextureFile(pTarget->m_iOffscreenTextureID, szIconTextureName, true, false);
-                pTarget->m_pIcon_offscreen = NULL;
-            }
-            else
-            {
-                pTarget->m_pIcon_offscreen = HudIcons().GetIcon(szIconTextureName);
-                pTarget->m_iOffscreenTextureID = -1;
-            }
+            pTarget->m_pIcon_offscreen = HudIcons().GetIcon(szIconTextureName);
         }
 
         return true;
@@ -1752,12 +1703,6 @@ void CLocatorPanel::DrawStaticIcon(CLocatorTarget *pTarget)
                                                 Color(255, 255, 255, pTarget->m_alpha));
         }
     }
-    else if (pTarget->m_iOnscreenTextureID != -1)
-    {
-        vgui::surface()->DrawSetTexture(pTarget->m_iOnscreenTextureID);
-        vgui::surface()->DrawSetColor(255, 255, 255, pTarget->m_alpha);
-        vgui::surface()->DrawTexturedRect(pTarget->GetIconX(), pTarget->GetIconY(), pTarget->GetIconX() + iconWide, pTarget->GetIconY() + iconTall);
-    }
 
     DrawTargetCaption(pTarget, pTarget->GetIconX() + iconWide + ICON_GAP, pTarget->GetIconCenterY(),
                       bDrawMultilineCaption);
@@ -1961,40 +1906,39 @@ void CLocatorPanel::DrawDynamicIcon(CLocatorTarget *pTarget, bool bDrawCaption, 
 //-----------------------------------------------------------------------------
 void CLocatorPanel::DrawTargetCaption(CLocatorTarget *pTarget, int x, int y, bool bDrawMultiline)
 {
-    vgui::HFont hUseFont = m_hCaptionFont;
-    int fontTall = vgui::surface()->GetFontTall(hUseFont);
-
-    // 如果默认字体无效，尝试寻找回退字体
-    if (fontTall <= 0)
-    {
-        vgui::IScheme *pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetDefaultScheme());
-        if (pScheme)
-        {
-            hUseFont = pScheme->GetFont("Default", true);
-            fontTall = vgui::surface()->GetFontTall(hUseFont);
-        }
-    }
-
-    // 依然无效则彻底放弃
-    if (fontTall <= 0)
-        return;
-
     // Draw the caption
-    vgui::surface()->DrawSetTextFont(hUseFont);
-    int iCaptionWidth = GetScreenWidthForCaption(pTarget->GetCaptionText(), hUseFont);
+    vgui::surface()->DrawSetTextFont(m_hCaptionFont);
+    int fontTall = vgui::surface()->GetFontTall(m_hCaptionFont);
+    int iCaptionWidth = GetScreenWidthForCaption(pTarget->GetCaptionText(), m_hCaptionFont);
 
     if (bDrawMultiline)
     {
         iCaptionWidth *= locator_split_len.GetFloat();
     }
 
-    // 强制 Alpha 和 颜色进行测试
-    int nAlpha = pTarget->m_alpha;
-    if (s_hTestTarget != -1) nAlpha = 255;
+    if (locator_text_glow.GetBool())
+    {
+        vgui::surface()->DrawSetTextFont(m_hCaptionGlowFont);
+        Color glowColor = locator_text_glow_color.GetColor();
+        vgui::surface()->DrawSetTextColor(glowColor.r(), glowColor.g(), glowColor.b(),
+                                          (glowColor.a() / 255.0f) * pTarget->m_alpha);
+        vgui::surface()->DrawSetTextPos(x - 1, y - (fontTall >> 1) - 1);
+        vgui::surface()->DrawUnicodeString(pTarget->GetCaptionText());
+        vgui::surface()->DrawSetTextFont(m_hCaptionFont);
+    }
+
+    // Only draw drop shadow on PC because it looks crappy on a TV
+    if (!IsConsole() && locator_text_drop_shadow.GetBool())
+    {
+        // Draw black text (drop shadow)
+        vgui::surface()->DrawSetTextColor(0, 0, 0, pTarget->m_alpha);
+        vgui::surface()->DrawSetTextPos(x, y - (fontTall >> 1));
+        vgui::surface()->DrawUnicodeString(pTarget->GetCaptionText());
+    }
 
     // Draw text
     vgui::surface()->DrawSetTextColor(pTarget->m_captionColor.r(), pTarget->m_captionColor.g(),
-                                      pTarget->m_captionColor.b(), nAlpha);
+                                      pTarget->m_captionColor.b(), pTarget->m_alpha);
 
     if (!bDrawMultiline)
     {
@@ -2013,7 +1957,7 @@ void CLocatorPanel::DrawTargetCaption(CLocatorTarget *pTarget, int x, int y, boo
 
         for (int iChar = 0; iChar < len; ++iChar)
         {
-            int charW = vgui::surface()->GetCharacterWidth(hUseFont, pString[iChar]);
+            int charW = vgui::surface()->GetCharacterWidth(m_hCaptionFont, pString[iChar]);
             iWidth += charW;
 
             if (iWidth > pTarget->m_captionWide && pString[iChar] == L' ')
@@ -2231,28 +2175,5 @@ void CLocatorPanel::RemoveTarget(int hTarget)
     if (pTarget)
     {
         pTarget->Deactivate();
-    }
-}
-
-CON_COMMAND(locator_test, "Test locator hint")
-{
-    if (s_hTestTarget != -1)
-    {
-        Locator_RemoveTarget(s_hTestTarget);
-        s_hTestTarget = -1;
-        Msg("Locator test target removed.\n");
-        return;
-    }
-    s_hTestTarget = Locator_AddTarget();
-    CLocatorTarget *pTarget = Locator_GetTargetFromHandle(s_hTestTarget);
-    if (pTarget)
-    {
-        pTarget->AddIconEffects(LOCATOR_ICON_FX_STATIC | LOCATOR_ICON_FX_FORCE_CAPTION | LOCATOR_ICON_FX_ALPHA_SLOW);      
-        pTarget->SetCaptionText("TEST HINT - CHECKING FOR ICON", NULL);   
-        pTarget->SetOnscreenIconTextureName("vgui/hud/icon_arrow_plain"); 
-        pTarget->SetCaptionColor("255,255,255"); 
-        pTarget->SetVisible(true);
-        pTarget->Update();       
-        Msg("Locator test added. If no icon shows, 'icon_arrow_plain' might be missing from hud_textures.txt.\n");
     }
 }

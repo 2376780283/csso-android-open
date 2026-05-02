@@ -1,4 +1,4 @@
-//====== Copyright ï¿½ 1996-2008, Valve Corporation, All rights reserved. =======
+//====== Copyright © 1996-2008, Valve Corporation, All rights reserved. =======
 //
 // Purpose: Add entities to this system, and the Locator will maintain an arrow
 //			on the HUD that points to the entities when they are offscreen.
@@ -12,7 +12,6 @@
 #endif
 
 #include "vgui_controls/PHandle.h"
-#include "ehandle.h"
 
 #define MAX_LOCATOR_BINDINGS_SHOWN 8
 #define MAX_LOCATOR_TARGETS 10
@@ -204,19 +203,6 @@ class CLocatorTarget
     {
         return m_bOccluded;
     }
-
-    void SetEntity(C_BaseEntity *pEntity)
-    {
-        m_hTargetEntity = pEntity;
-    }
-    C_BaseEntity *GetEntity()
-    {
-        return m_hTargetEntity.Get();
-    }
-
-    EHANDLE m_hTargetEntity;
-    int m_iOnscreenTextureID;
-    int m_iOffscreenTextureID;
 
   private:
     CGameInstructorSymbol m_szVguiTargetName;
