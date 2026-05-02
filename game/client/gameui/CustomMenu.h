@@ -14,9 +14,11 @@
 #include "vgui_controls/Panel.h"
 #include "vgui_controls/ImagePanel.h"
 #include "vgui_controls/Label.h"
+#include <vgui/IInput.h>
 #include "utlvector.h"
 #include "materialsystem/imaterial.h"
 #include "materialsystem/MaterialSystemUtil.h"
+#include "vgui/ISurface.h"
 
 #include <materialsystem/itexture.h>
 #include <materialsystem/imaterialvar.h>

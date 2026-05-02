@@ -20,6 +20,7 @@ using namespace vgui;
 
 #include "vgui_controls/ComboBox.h"
 #include <vgui/ILocalize.h>
+#include "vgui/ISurface.h"
 
 #include "filesystem.h"
 #include <KeyValues.h>
@@ -35,17 +36,14 @@ using namespace vgui;
 CCreateMultiplayerGameDialog::CCreateMultiplayerGameDialog(vgui::Panel *parent) : PropertyDialog(parent, "CreateMultiplayerGameDialog")
 {
 	SetDeleteSelfOnClose(true);
-
-	int w = 424;
-	int h = 460;
-	if (IsProportional())
-	{
-		w = scheme()->GetProportionalScaledValueEx(GetScheme(), w);
-		h = scheme()->GetProportionalScaledValueEx(GetScheme(), h);
-	}
-
-	SetSize(w, h);
-	
+	SetSizeable(false);
+	SetMoveable(false);
+    SetSizeable(false);
+    SetCenterSheetEnabled(true);
+    SetFixedSheetWidth(424);	
+	int screenW, screenH;
+	vgui::surface()->GetScreenSize(screenW, screenH);
+	SetBounds(0, 0, screenW, screenH);
 	SetTitle("#GameUI_CreateServer", true);
 	SetOKButtonText("#GameUI_Start");
 
@@ -232,4 +230,9 @@ void CCreateMultiplayerGameDialog::OnKeyCodePressed( vgui::KeyCode code )
 	{
 		BaseClass::OnKeyCodePressed( code );
 	}
+}
+
+void CCreateMultiplayerGameDialog::PaintBackground()
+{
+	m_BlurHelper.DrawBlur(this, 160.0f);
 }

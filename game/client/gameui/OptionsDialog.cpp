@@ -46,16 +46,8 @@ using namespace vgui;
 COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "OptionsDialog")
 {
 	SetDeleteSelfOnClose(true);
-
-	// int w = 512;
-	// int h = 406;
 	int w, h;
 	vgui::surface()->GetScreenSize(w, h);
-	/*if (IsProportional())
-	{
-		w = scheme()->GetProportionalScaledValueEx(GetScheme(), w);
-		h = scheme()->GetProportionalScaledValueEx(GetScheme(), h);
-	}*/
 	SetCenterSheetEnabled(true);
 	SetCloseButtonVisible(false);
 	SetMoveable(false);

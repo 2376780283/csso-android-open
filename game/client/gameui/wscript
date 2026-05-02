@@ -103,8 +103,6 @@ def build(bld):
 		'ModOptionsSubAgents.cpp',
 		'ModOptionsSubGloves.cpp',
 		'ModOptionsSubHUD.cpp',
-		'ExtraManagerPanel.cpp',
-		'CardPanel.cpp',
 	]
 
 	if bld.env.DEST_OS == 'win32':

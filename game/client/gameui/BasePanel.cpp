@@ -56,7 +56,6 @@ using namespace vgui;
 #include "LoadGameDialog.h"
 #include "SaveGameDialog.h"
 #include "OptionsDialog.h"
-#include "ExtraManagerPanel.h" // unh?
 #include "ModOptionsDialog.h"
 #include "CreateMultiplayerGameDialog.h"
 #include "ChangeGameDialog.h"
@@ -2628,7 +2627,6 @@ void CBaseModPanel::RunFrame()
 void CBaseModPanel::UpdateRichPresenceInfo()
 {
 }
-
 //-----------------------------------------------------------------------------
 // Purpose: Lays out the position of the taskbar
 //-----------------------------------------------------------------------------
@@ -2971,10 +2969,6 @@ void CBaseModPanel::RunMenuCommand(const char *command)
 	else if ( !Q_stricmp( command, "OpenLoadCommentaryDialog" ) )
 	{
 		OnOpenLoadCommentaryDialog();	
-	}
-	else if ( !Q_stricmp( command, "Extra_manager" ) )
-	{
-		ShowExtraManager();
 	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
@@ -4001,19 +3995,12 @@ void CBaseModPanel::OnOpenVoteDialog()
 //-----------------------------------------------------------------------------
 void CBaseModPanel::OnOpenCreateMultiplayerGameDialog()
 {
-/*	if (!m_hCreateMultiplayerGameDialog.Get())
+	if (!m_hCreateMultiplayerGameDialog.Get())
 	{
 		m_hCreateMultiplayerGameDialog = new CCreateMultiplayerGameDialog(this);
 		PositionDialog(m_hCreateMultiplayerGameDialog);
 	}
-	m_hCreateMultiplayerGameDialog->Activate();*/
-    if ( !m_hExtraDialog.Get() )
-	{
-	    m_hExtraDialog = new ExtraManagerPanel(this);
-		PositionDialog( m_hExtraDialog );
-		m_hExtraDialog->MoveToCenterOfScreen(); 
-	}
-    m_hExtraDialog->Activate();  
+	m_hCreateMultiplayerGameDialog->Activate();
 }
 
 //-----------------------------------------------------------------------------
@@ -4132,31 +4119,6 @@ void CBaseModPanel::OnOpenAchievementsDialog_Xbox()
 	}
 	m_hAchievementsDialog->Activate();
 }
-
-// -------
-// unh i will delete the shit func motherfuck 
-// -------
-void CBaseModPanel::ShowExtraManager()
-{ 
-/*    if ( !m_hExtraDialog.Get() )
-	{
-	    m_hExtraDialog = new ExtraManagerPanel(this);
-		PositionDialog( m_hExtraDialog );
-		m_hExtraDialog->MoveToCenterOfScreen(); 
-	}
-    m_hExtraDialog->Activate(); */  
-  
-}
-
-void CC_ShowExtraManager(const CCommand &args)
-{
-/*    if (g_pBasePanel)
-    {
-        g_pBasePanel->ShowExtraManager();
-    } */
-}
-
-static ConCommand Extra_manager("Extra_manager", CC_ShowExtraManager, "Open Extra Manager dialog", FCVAR_NONE);
 
 //-----------------------------------------------------------------------------
 // Purpose: 

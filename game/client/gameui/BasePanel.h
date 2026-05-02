@@ -16,7 +16,6 @@
 #include "vgui_controls/PHandle.h"
 #include "vgui_controls/MenuItem.h"
 #include "vgui_controls/MessageDialog.h"
-#include "ExtraManagerPanel.h" 
 #include "KeyValues.h"
 #include "utlvector.h"
 #include "tier1/CommandBuffer.h"
@@ -308,7 +307,6 @@ public:
 	void OnOpenChangeGameDialog();
 	void OnOpenPlayerListDialog();
 	void OnOpenBenchmarkDialog();
-	void ShowExtraManager();
 	void OnOpenOptionsDialog();
 	void OnOpenModOptionsDialog();
 	void OnResumeGame();
@@ -369,8 +367,6 @@ public:
 
 	int  GetMenuAlpha( void );
 	
-    ExtraManagerPanel *m_pExtraPanel;
-
 	void SetMainMenuOverride( vgui::VPANEL panel );
 	void RestartBackgroundVideo();
 	
@@ -471,8 +467,7 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hPlayerListDialog;
 	vgui::DHANDLE<vgui::Frame> m_hBenchmarkDialog;
 	vgui::DHANDLE<vgui::Frame> m_hLoadCommentaryDialog;
-	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;
-    vgui::DHANDLE<vgui::Frame> m_hExtraDialog;
+	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;   
 
 	// Xbox 360
 	vgui::DHANDLE<vgui::Frame> m_hMatchmakingBasePanel;
