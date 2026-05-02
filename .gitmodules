@@ -3,7 +3,7 @@
 	url = https://github.com/SourceApp-GameLauncher/csso-thirdparty
 [submodule "ivp"]
 	path = ivp
-	url = https://github.com/nillerusr/source-physics
+	url = https://github.com/SourceApp-GameLauncher/SourceApp-physics
 [submodule "lib"]
 	path = lib
 	url = https://github.com/SourceApp-GameLauncher/csso-libs
