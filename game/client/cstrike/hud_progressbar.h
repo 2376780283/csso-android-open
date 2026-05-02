@@ -61,8 +61,8 @@ protected:
     VectorImagePanel* m_pActionIcon;
     ActionIcon m_nCurrentIcon;
 
-    CPanelAnimationVar( int, m_iRadius, "radius", "40" );
-    CPanelAnimationVar( int, m_iThickness, "thickness", "8" );
+    CPanelAnimationVar( int, m_iRadius, "radius", "30" );
+    CPanelAnimationVar( int, m_iThickness, "thickness", "6" );
 };
 
 } // namespace vgui
