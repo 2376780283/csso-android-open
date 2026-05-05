@@ -31,3 +31,100 @@ jobs:
         with:
           name: csso-${{matrix.target}}
           path: ./output/*
+
+  build-linux-dedicated:
+    name: Build Dedicated Server for linux-amd64
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source (shallow clone)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt update
+          sudo apt install -y gcc-9 g++-9
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 90
+          sudo apt install libbz2-dev libbz2-dev:i386
+          sudo apt install libedit-dev libedit-dev:i386
+          sudo apt install zlib1g-dev zlib1g-dev:i386
+          sudo apt install -y \
+            build-essential \
+            python3 \
+            lib32gcc-s1 \
+            g++-multilib \
+            gcc-multilib \
+            pkg-config \
+            ccache \
+            libx11-dev:i386 \
+            libxext-dev:i386 \
+            libxrandr-dev:i386 \
+            libxinerama-dev:i386 \
+            libxcursor-dev:i386 \
+            libgl1-mesa-dev:i386 \
+            libfreetype6-dev:i386 \
+            zlib1g-dev:i386 \
+            libcurl4-gnutls-dev:i386 \
+            libopenal-dev:i386 \
+            libpng-dev:i386
+
+      - name: Set Python 3 as default
+        run: |
+          sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+
+      - name: Configure build with Waf
+        run: |
+          python3 waf configure -T release --build-games=csso -d --disable-warns
+
+      - name: Build project
+        run: |
+          chmod +x ./waf
+          ./waf build -j$(nproc)
+
+      - name: Cache Build Tools
+        id: cache-build-tools
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-android-ndk-llvm-${{ hashFiles('**/waf', '**/wscript') }}
+          restore-keys: ${{ runner.os }}-android-ndk-llvm-
+          path: |
+            $HOME/android-ndk
+            $HOME/llvm11
+
+      - name: Download and setup Android NDK r10e + LLVM 11
+        if: ${{ steps.cache-build-tools.outputs.cache-hit != 'true' }}
+        run: |
+          # Download NDK r10e
+          wget -nv https://dl.google.com/android/repository/android-ndk-r10e-linux-x86_64.zip
+          unzip -q android-ndk-r10e-linux-x86_64.zip -d $HOME/android-ndk/
+          
+          # Download and extract LLVM 11 + Clang
+          mkdir -p $HOME/llvm11
+          wget -nv https://github.com/llvm/llvm-project/releases/download/llvmorg-11.1.0/clang+llvm-11.1.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+          tar -xJf clang+llvm-11.1.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz --strip-components=1 -C $HOME/llvm11
+          ls $HOME/llvm11
+          
+          
+      - name: Package .so files into ZIP
+        run: |
+          mkdir -p output/server/bin
+          mkdir -p output/server/csso/bin
+          find build -type f -name "*.so" -not -name "libserver.so" -exec cp {} output/server/bin/ \;
+          find build -type f -name "libserver.so" -exec cp {} output/server/csso/bin/ \;
+          find build -type f -name "dedicated_launcher" -exec cp {} output/server/ \;
+          find output/server -type f -name "*.so" -exec $HOME/android-ndk/android-ndk-r10e/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/aarch64-linux-android/bin/strip --strip-unneeded {} \;
+
+      - name: Upload server build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: csso-dedicated-linux64-build
+          path: ./build/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: csso-dedicated-linux64
+          path: ./output/server/
