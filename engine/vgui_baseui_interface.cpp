@@ -609,7 +609,7 @@ void CEngineVGui::Init()
 		return;
 	}
 
-	if ( IsX360() || IsSteamDeck() )
+	if ( IsX360() || IsGamepadUI() )
 	{
 		CCommand ccommand;
 		if ( CL_ShouldLoadBackgroundLevel( ccommand ) )
