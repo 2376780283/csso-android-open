@@ -32,6 +32,7 @@
 #include "steam/isteamutils.h"
 #include "steam/steam_api.h"
 #include "steam/isteamremotestorage.h"
+#include "SourceApp/sourceapp_userstats.h"
 #else
 #include "xbox/xbox_win32stubs.h"
 #endif
