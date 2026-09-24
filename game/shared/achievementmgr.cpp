@@ -986,6 +986,10 @@ void CAchievementMgr::AwardAchievement( int iAchievementID )
 		}
 		m_AchievementsAwarded.AddToTail( iAchievementID );
 #endif
+    	if ( SourceAppApicontext && SourceAppApicontext->SourceAppUserStats() )
+    	{
+    		SourceAppApicontext->SourceAppUserStats()->SetAchievement( pAchievement->GetName() );
+    	}
 	}
 	else if ( IsX360() )
 	{
