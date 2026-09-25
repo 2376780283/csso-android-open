@@ -4,10 +4,7 @@ Ported by ndke, den4iklovelinux, cherrybtw
 Mod author: PimonFeeD
 Source engine port author: nillerusr
 
-SomeFeatures from SourceApp
-
-CS:SO apk source code https://github.com/2376780283/csso-source-launcher
-
+Modifier from SourceApp
 
 # Source Engine
 [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/build.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/build.yml) [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml)
@@ -42,11 +39,8 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - Serverbrowser works without steam
 - Bink video
 - Lunasvg
-- webm video
 - achievement works without steam
 - avatar works without steam
-- blur vgui surface
-- skin system (csgo)
 
 # Current tasks
 - Rewrite materialsystem for OpenGL render
